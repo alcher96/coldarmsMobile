@@ -49,6 +49,13 @@
       "typedRoutes": true,
       "reactCompiler": true
     },
-    "backgroundColor": "#0B0B0C"
+    "backgroundColor": "#0B0B0C",
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "7f6f66c6-5eb3-4a78-8e36-dc23f92c9fe3"
+      }
+    },
+    "owner": "alcher96"
   }
 }
