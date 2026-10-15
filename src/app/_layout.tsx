@@ -7,6 +7,8 @@ import { StatusBar } from 'expo-status-bar';
 import { useEffect } from 'react';
 
 import { AuthProvider, useAuth } from '@/auth/auth-context';
+import { NotificationBanner } from '@/components/notification-banner';
+import { NotificationsProvider } from '@/notifications/notifications-context';
 import { colors } from '@/theme/tokens';
 
 SplashScreen.preventAutoHideAsync();
@@ -29,10 +31,13 @@ export default function RootLayout() {
 
   return (
     <AuthProvider>
-      <ThemeProvider value={theme}>
-        <StatusBar style="light" />
-        <RootNavigator />
-      </ThemeProvider>
+      <NotificationsProvider>
+        <ThemeProvider value={theme}>
+          <StatusBar style="light" />
+          <RootNavigator />
+          <NotificationBanner />
+        </ThemeProvider>
+      </NotificationsProvider>
     </AuthProvider>
   );
 }
@@ -55,6 +60,9 @@ function RootNavigator() {
         <Stack.Screen name="fight/[id]" />
         <Stack.Screen name="athlete/[id]" />
         <Stack.Screen name="competition/[id]" />
+        <Stack.Screen name="notifications" />
+        <Stack.Screen name="search" options={{ animation: 'fade' }} />
+        <Stack.Screen name="user/[id]" />
       </Stack.Protected>
       <Stack.Protected guard={status === 'signedOut'}>
         <Stack.Screen name="(auth)" />

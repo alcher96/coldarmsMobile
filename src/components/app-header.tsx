@@ -1,8 +1,9 @@
 import { router } from 'expo-router';
-import { Bell, User } from 'lucide-react-native';
+import { Bell, Search, User } from 'lucide-react-native';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { useAuth } from '@/auth/auth-context';
+import { useNotifications } from '@/notifications/notifications-context';
 import { initialsOf } from '@/lib/format';
 import { colors, fonts, space, radii } from '@/theme/tokens';
 
@@ -10,6 +11,7 @@ import { colors, fonts, space, radii } from '@/theme/tokens';
 export function AppHeader() {
   const { user } = useAuth();
   const initials = initialsOf(user?.nickname ?? user?.email);
+  const { unread } = useNotifications();
   return (
     <View style={styles.root}>
       <View style={styles.logo}>
@@ -18,8 +20,19 @@ export function AppHeader() {
         <Text style={styles.logoDomain}>.COM</Text>
       </View>
       <View style={styles.actions}>
-        <Pressable hitSlop={10} accessibilityLabel="Уведомления">
+        <Pressable hitSlop={10} onPress={() => router.push('/search')} accessibilityLabel="Поиск">
+          <Search size={20} color={colors.text} strokeWidth={1.6} />
+        </Pressable>
+        <Pressable
+          hitSlop={10}
+          onPress={() => router.push('/notifications')}
+          accessibilityLabel={unread ? `Уведомления: ${unread} новых` : 'Уведомления'}>
           <Bell size={20} color={colors.text} strokeWidth={1.6} />
+          {unread > 0 ? (
+            <View style={styles.badge}>
+              <Text style={styles.badgeText}>{unread > 9 ? '9+' : unread}</Text>
+            </View>
+          ) : null}
         </Pressable>
         <Pressable style={styles.avatar} accessibilityLabel="Профиль" onPress={() => router.navigate('/profile')}>
           {initials ? (
@@ -34,6 +47,21 @@ export function AppHeader() {
 }
 
 const styles = StyleSheet.create({
+  badge: {
+    position: 'absolute',
+    top: -6,
+    right: -8,
+    minWidth: 17,
+    height: 17,
+    paddingHorizontal: 4,
+    borderRadius: 9,
+    backgroundColor: colors.accent,
+    borderWidth: 2,
+    borderColor: colors.bg,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  badgeText: { fontFamily: fonts.bodySemi, fontSize: 9, lineHeight: 11, color: colors.text },
   root: {
     height: 56,
     paddingHorizontal: space.gutter,

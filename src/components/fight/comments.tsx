@@ -1,3 +1,4 @@
+import { router } from 'expo-router';
 import { ArrowUp } from 'lucide-react-native';
 import { useState } from 'react';
 import {
@@ -13,6 +14,7 @@ import {
 } from 'react-native';
 
 import { likeComment, loadComments, postComment, type Comment } from '@/api/fight';
+import { loadMyId } from '@/api/profile';
 import { initialsOf, timeAgo } from '@/lib/format';
 import { colors, fonts, radii } from '@/theme/tokens';
 
@@ -143,6 +145,12 @@ function CommentsSheet({
   );
 }
 
+/** Автор комментария — его публичный профиль (свой — личный кабинет). */
+async function openAuthor(id: string) {
+  if (id === (await loadMyId())) router.navigate('/profile');
+  else router.push({ pathname: '/user/[id]', params: { id } });
+}
+
 function CommentRow({ c, compact, onLike }: { c: Comment; compact?: boolean; onLike?: () => void }) {
   const liked = c.myReaction === true || c.myReaction === 'Like' || c.myReaction === 'like';
   return (
@@ -152,7 +160,12 @@ function CommentRow({ c, compact, onLike }: { c: Comment; compact?: boolean; onL
       </View>
       <View style={styles.flex}>
         <Text style={styles.author}>
-          {c.authorName ?? 'Аноним'} <Text style={styles.time}>{timeAgo(c.createdAt)}</Text>
+          <Text
+            onPress={c.userId ? () => openAuthor(c.userId!) : undefined}
+            suppressHighlighting={!c.userId}>
+            {c.authorName ?? 'Аноним'}
+          </Text>{' '}
+          <Text style={styles.time}>{timeAgo(c.createdAt)}</Text>
         </Text>
         <Text style={styles.text} numberOfLines={compact ? 3 : undefined}>
           {c.text}

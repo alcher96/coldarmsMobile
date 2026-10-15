@@ -1,4 +1,4 @@
-import { dropAccessToken, getAccessToken, saveTokensFrom } from './session';
+import { clearCredentials, clearTokens, dropAccessToken, getAccessToken, loadCredentials, saveTokensFrom } from './session';
 
 export const SITE_URL = 'https://coldarms.com';
 
@@ -55,14 +55,39 @@ async function rawFetch(path: string, init: RequestInit = {}): Promise<Response>
 // Один общий рефреш на пачку одновременных 401 — как на сайте.
 let inflightRefresh: Promise<boolean> | null = null;
 
+async function tryRefresh(): Promise<boolean> {
+  const r = await rawFetch('/auth/refresh', { method: 'POST' });
+  if (!r.ok) return false;
+  if (!(await saveTokensFrom(await readJson(r)))) await dropAccessToken();
+  return true;
+}
+
+/**
+ * Тихий повторный вход по сохранённым почте и паролю — когда refresh-токен уже истёк
+ * (Keycloak держит сессию час без активности). Неверный пароль (сменили на сайте) — забываем его.
+ */
+async function silentLogin(): Promise<boolean> {
+  const c = await loadCredentials();
+  if (!c) return false;
+  await clearTokens();
+  const r = await rawFetch('/login', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ email: c.email, password: c.password }),
+  });
+  if (r.status === 400 || r.status === 401) {
+    await clearCredentials();
+    return false;
+  }
+  if (!r.ok) return false;
+  await saveTokensFrom(await readJson(r));
+  return true;
+}
+
 export function refreshSession(): Promise<boolean> {
-  inflightRefresh ??= rawFetch('/auth/refresh', { method: 'POST' })
-    .then(async (r) => {
-      if (!r.ok) return false;
-      if (!(await saveTokensFrom(await readJson(r)))) await dropAccessToken();
-      return true;
-    })
+  inflightRefresh ??= tryRefresh()
     .catch(() => false)
+    .then((ok) => ok || silentLogin().catch(() => false))
     .finally(() => {
       setTimeout(() => (inflightRefresh = null), 3000);
     });
@@ -79,7 +104,7 @@ async function readJson(r: Response): Promise<unknown> {
   }
 }
 
-/** Запрос с продлением сессии: 401 → /auth/refresh → повтор. */
+/** Запрос с продлением сессии: 401 → /auth/refresh (или тихий вход) → повтор. */
 export async function apiFetch(path: string, init?: RequestInit, { retry = true } = {}): Promise<Response> {
   const r = await rawFetch(path, init);
   if (r.status !== 401 || !retry) return r;

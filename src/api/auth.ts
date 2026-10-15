@@ -1,7 +1,13 @@
 import { apiFetch, apiPost, parseApiJson } from './http';
-import { clearTokens, saveTokensFrom } from './session';
+import { clearCredentials, clearTokens, saveCredentials, saveTokensFrom } from './session';
 
-export type User = { nickname: string | null; email: string | null; emailVerified: boolean };
+export type User = {
+  nickname: string | null;
+  email: string | null;
+  emailVerified: boolean;
+  /** Идентификатор Keycloak — по нему хаб уведомлений держит личную группу пользователя. */
+  sub: string | null;
+};
 
 type Claim = { type: string; value: string };
 
@@ -38,6 +44,8 @@ export async function login(email: string, password: string) {
   if (r.status === 401) throw new AuthError('Неверная почта или пароль');
   if (!r.ok) throw failure(r.status, r.data, 'Не удалось войти. Попробуйте позже');
   await saveTokensFrom(r.data);
+  // Чтобы не вводить пароль снова, когда сессия на сервере истечёт (см. silentLogin в http.ts).
+  await saveCredentials({ email, password });
 }
 
 export type RegisterInput = {
@@ -70,6 +78,7 @@ export async function fetchMe(): Promise<User | null> {
     email:
       claim('email') ?? claim('http://schemas.xmlsoap.org/ws/2005/05/identity/claims/emailaddress'),
     emailVerified: claim('email_verified')?.toLowerCase() === 'true',
+    sub: claim('sub') ?? claim('http://schemas.xmlsoap.org/ws/2005/05/identity/claims/nameidentifier'),
   };
 }
 
@@ -77,5 +86,5 @@ export async function logout() {
   try {
     await apiPost('/auth/logout', undefined, { retry: false });
   } catch {}
-  await clearTokens();
+  await Promise.all([clearTokens(), clearCredentials()]);
 }

@@ -168,6 +168,7 @@ export type VoteStats = { wrestler1Stats: VoteSide | null; wrestler2Stats: VoteS
 export type Comment = {
   id: string;
   authorName: string | null;
+  userId?: string | null;
   authorAvatarUrl: string | null;
   text: string;
   createdAt: string;

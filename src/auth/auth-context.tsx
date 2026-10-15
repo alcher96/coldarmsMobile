@@ -1,6 +1,7 @@
 import { createContext, use, useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
 
 import * as authApi from '@/api/auth';
+import { resetMyId } from '@/api/profile';
 import { setSessionExpiredHandler } from '@/api/http';
 import { loadTokens } from '@/api/session';
 
@@ -20,6 +21,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<authApi.User | null>(null);
 
   const signedOut = useCallback(() => {
+    resetMyId();
     setUser(null);
     setStatus('signedOut');
   }, []);
@@ -46,7 +48,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     await authApi.login(email, password);
     // Ник для шапки. Если /auth/me не ответил — вход всё равно состоялся.
     const me = await authApi.fetchMe().catch(() => null);
-    setUser(me ?? { nickname: null, email, emailVerified: false });
+    setUser(me ?? { nickname: null, email, emailVerified: false, sub: null });
     setStatus('signedIn');
   }, []);
 

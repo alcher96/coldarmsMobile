@@ -8,6 +8,7 @@ import { Platform } from 'react-native';
  */
 const ACCESS_KEY = 'ca_access_token';
 const REFRESH_KEY = 'ca_refresh_token';
+const CREDENTIALS_KEY = 'ca_credentials';
 
 // На вебе SecureStore нет — там только память (веб-сборка нужна лишь для превью).
 const memory = new Map<string, string>();
@@ -26,8 +27,10 @@ async function write(key: string, value: string | null) {
     else memory.set(key, value);
     return;
   }
-  if (value === null) await SecureStore.deleteItemAsync(key);
-  else await SecureStore.setItemAsync(key, value);
+  // Только на этом устройстве и только после первой разблокировки: в облачные бэкапы не уходит.
+  const opts = { keychainAccessible: SecureStore.AFTER_FIRST_UNLOCK_THIS_DEVICE_ONLY };
+  if (value === null) await SecureStore.deleteItemAsync(key, opts);
+  else await SecureStore.setItemAsync(key, value, opts);
 }
 
 export async function loadTokens() {
@@ -58,6 +61,31 @@ export async function saveTokensFrom(body: unknown): Promise<boolean> {
 export async function dropAccessToken() {
   accessToken = null;
   await write(ACCESS_KEY, null);
+}
+
+/**
+ * Почта и пароль для тихого повторного входа. Сессия Keycloak умирает через час без активности,
+ * поэтому, когда продлить её уже нельзя, приложение входит заново само, не показывая форму.
+ * Хранятся в системном защищённом хранилище (Android Keystore / iOS Keychain), только на устройстве.
+ */
+export type Credentials = { email: string; password: string };
+
+export async function saveCredentials(c: Credentials) {
+  await write(CREDENTIALS_KEY, JSON.stringify(c));
+}
+
+export async function loadCredentials(): Promise<Credentials | null> {
+  try {
+    const raw = await read(CREDENTIALS_KEY);
+    const c = raw ? (JSON.parse(raw) as Credentials) : null;
+    return c?.email && c.password ? c : null;
+  } catch {
+    return null;
+  }
+}
+
+export async function clearCredentials() {
+  await write(CREDENTIALS_KEY, null);
 }
 
 export async function clearTokens() {
