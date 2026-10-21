@@ -196,7 +196,6 @@ function Fight({ data }: { data: FightPage }) {
       <FighterSheet
         side={fighter === 1 ? a : fighter === 2 ? b : null}
         wrestler={fighter === 1 ? data.wrestler1 : fighter === 2 ? data.wrestler2 : null}
-        intro={finished && data.intro}
         onClose={() => setFighter(null)}
       />
     </>

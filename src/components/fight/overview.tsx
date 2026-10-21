@@ -1,11 +1,9 @@
-import { Image } from 'expo-image';
 import { ChevronDown } from 'lucide-react-native';
 import { useState } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import {
   loadMiraAnalysis,
-  wrestlerPhotoUrl,
   loadVotes,
   VOTE_OUTCOMES,
   voteFight,
@@ -15,7 +13,6 @@ import {
   type Round,
   type VoteStats,
 } from '@/api/fight';
-import { IntroLoop } from '@/components/intro-loop';
 import { plural } from '@/lib/format';
 import { colors, fonts, radii } from '@/theme/tokens';
 
@@ -133,20 +130,6 @@ function ResultCard({ data, a, b }: { data: FightPage; a: Side; b: Side }) {
         <Text style={styles.roundDetail}>
           Раунд {r.roundNumber} · {detail}
         </Text>
-      ) : null}
-      {data.intro ? (
-        <>
-          <Text style={[styles.kicker, styles.introHead]}>ИНТРО БОЙЦОВ</Text>
-          <View style={styles.intros}>
-            {[a, b].map((s) => (
-              <View key={s.id} style={styles.intro}>
-                <Image source={wrestlerPhotoUrl(s.id)} style={StyleSheet.absoluteFill} contentFit="cover" contentPosition="top" />
-                <IntroLoop id={s.id} mode="show" />
-                <Text style={styles.introName}>{s.last}</Text>
-              </View>
-            ))}
-          </View>
-        </>
       ) : null}
     </View>
   );
@@ -564,24 +547,6 @@ const styles = StyleSheet.create({
   roundN: { fontFamily: fonts.display, fontSize: 15, color: colors.text },
   roundG: { fontFamily: fonts.bodySemi, fontSize: 10, color: colors.text, opacity: 0.8 },
   roundDetail: { fontFamily: fonts.bodyMedium, fontSize: 13, lineHeight: 18, color: fc.soft, marginTop: 10 },
-  introHead: { marginTop: 16 },
-  intros: { flexDirection: 'row', gap: 6, marginTop: 8 },
-  intro: {
-    flex: 1,
-    aspectRatio: 16 / 10,
-    borderRadius: radii.control,
-    backgroundColor: fc.chip,
-    overflow: 'hidden',
-  },
-  introName: {
-    position: 'absolute',
-    left: 8,
-    bottom: 6,
-    fontFamily: fonts.display,
-    fontSize: 12,
-    textTransform: 'uppercase',
-    color: colors.text,
-  },
 
   voteBtns: { flexDirection: 'row', gap: 8, marginTop: 12 },
   voteBtn: {

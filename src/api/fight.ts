@@ -197,8 +197,6 @@ export type FightPage = {
   votes: VoteStats | null;
   comments: Comment[];
   rounds: Round[];
-  /** Есть ли у обоих бойцов видео-интро. */
-  intro: boolean;
   w1Score: number;
   w2Score: number;
 };
@@ -258,7 +256,7 @@ export async function loadFightPage(fightId: string): Promise<FightPage> {
   if (!fight) throw new Error('Бой не найден');
   const a = fight.wrestler1Id;
   const b = fight.wrestler2Id;
-  const [competition, wrestler1, wrestler2, rounds, comparison, statsA, statsB, stylesA, stylesB, matrix, mira, votes, comments, v1, v2] =
+  const [competition, wrestler1, wrestler2, rounds, comparison, statsA, statsB, stylesA, stylesB, matrix, mira, votes, comments] =
     await Promise.all([
       safe(apiGet<Competition>(`/api/Competition/${fight.competitionId}`)),
       safe(apiGet<Wrestler>(`/api/ArmWrestler/${a}`)),
@@ -273,8 +271,6 @@ export async function loadFightPage(fightId: string): Promise<FightPage> {
       loadMira(fightId),
       safe(apiGet<VoteStats>(`/api/fightsPredictions/${fightId}/vote-stats`)),
       loadComments(fightId).catch(() => []),
-      safe(apiGet<{ hasMp4: boolean; hasWebm: boolean }>(`/api/ArmWrestler/${a}/video`)),
-      safe(apiGet<{ hasMp4: boolean; hasWebm: boolean }>(`/api/ArmWrestler/${b}/video`)),
     ]);
   const list = (rounds ?? []).slice().sort((x, y) => x.roundNumber - y.roundNumber);
   return {
@@ -292,7 +288,6 @@ export async function loadFightPage(fightId: string): Promise<FightPage> {
     votes,
     comments,
     rounds: list,
-    intro: !!v1?.hasMp4 && !!v2?.hasMp4,
     w1Score: list.filter((r) => r.winnerName === fight.wrestler1Name).length,
     w2Score: list.filter((r) => r.winnerName === fight.wrestler2Name).length,
   };

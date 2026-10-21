@@ -7,35 +7,20 @@ import { Animated, AppState, Platform, StyleSheet } from 'react-native';
 import { SITE_URL } from '@/api/http';
 
 /**
- * Видео-луп бойца поверх его фото — как на сайте.
- *
- * - `cycle` (страница атлета, шторка бойца): фото и видео сменяют друг друга каждые `periodMs`,
- *   видео крутится по кругу (сайт: baMediaCycle, 7 с).
- * - `show` (интро на экране боя): каждые `periodMs` ролик проигрывается с начала, плавно
- *   проявляется и гаснет чуть раньше конца, чтобы не замирать на последнем кадре (сайт: baFightLoops, 10 с).
- *
- * Пока видео не загрузилось или его нет, виден только слой под ним (фото).
+ * Видео-луп атлета поверх его фото — как на сайте (baMediaCycle): фото и видео сменяют друг
+ * друга каждые `periodMs`, видео крутится по кругу. Пока видео не загрузилось, видно фото.
  * Звука нет; чужую музыку не прерываем. Вне экрана и в фоне не играет.
  */
-export function IntroLoop({
-  id,
-  mode = 'cycle',
-  periodMs = mode === 'cycle' ? 7000 : 10000,
-}: {
-  id: string;
-  mode?: 'cycle' | 'show';
-  periodMs?: number;
-}) {
+export function IntroLoop({ id, periodMs = 7000 }: { id: string; periodMs?: number }) {
   // webm в разы легче, но AVPlayer на iOS его не умеет — там mp4.
   const format = Platform.OS === 'ios' ? 'mp4' : 'webm';
   const player = useVideoPlayer(`${SITE_URL}/api/ArmWrestler/${id}/video/file?format=${format}`, (p) => {
     p.muted = true;
-    p.loop = mode === 'cycle';
+    p.loop = true;
     p.audioMixingMode = 'mixWithOthers';
     p.keepScreenOnWhilePlaying = false;
   });
-  // Готовность запоминаем один раз: перемотка на начало снова даёт «loading», и без защёлки
-  // показ сбрасывался бы при каждом повторе.
+  // Готовность запоминаем один раз: на повторах плеер снова ненадолго уходит в «loading».
   const [ready, setReady] = useState(() => player.status === 'readyToPlay');
   useEventListener(player, 'statusChange', ({ status }) => {
     if (status === 'readyToPlay') setReady(true);
@@ -45,47 +30,28 @@ export function IntroLoop({
 
   useEffect(() => {
     if (!ready || !active) return;
-    const timers: ReturnType<typeof setTimeout>[] = [];
-    const later = (fn: () => void, ms: number) => timers.push(setTimeout(fn, ms));
-    const fade = (on: boolean) =>
-      Animated.timing(opacity, { toValue: on ? 1 : 0, duration: 600, useNativeDriver: true }).start();
-    const hide = () => {
-      fade(false);
-      later(() => player.pause(), 700);
-    };
-
-    if (mode === 'cycle') {
-      let on = false;
-      const id = setInterval(() => {
-        on = !on;
-        if (on) {
-          player.play();
-          fade(true);
-        } else hide();
-      }, periodMs);
-      return () => {
-        clearInterval(id);
-        timers.forEach(clearTimeout);
-        opacity.setValue(0);
-        stop(player);
-      };
-    }
-
-    const show = () => {
-      player.currentTime = 0;
-      player.play();
-      fade(true);
-      const length = (player.duration || 6) * 1000;
-      later(hide, Math.max(600, length - 800));
-      later(show, Math.max(periodMs, length + 1500));
-    };
-    later(show, 1200);
+    let on = false;
+    let pauseTimer: ReturnType<typeof setTimeout> | undefined;
+    const fade = (to: number) => Animated.timing(opacity, { toValue: to, duration: 600, useNativeDriver: true }).start();
+    const tick = setInterval(() => {
+      on = !on;
+      clearTimeout(pauseTimer);
+      if (on) {
+        player.play();
+        fade(1);
+      } else {
+        fade(0);
+        // Даём фейду закончиться, потом останавливаем декодирование.
+        pauseTimer = setTimeout(() => stop(player), 700);
+      }
+    }, periodMs);
     return () => {
-      timers.forEach(clearTimeout);
+      clearInterval(tick);
+      clearTimeout(pauseTimer);
       opacity.setValue(0);
       stop(player);
     };
-  }, [ready, active, mode, periodMs, player, opacity]);
+  }, [ready, active, periodMs, player, opacity]);
 
   return (
     <Animated.View pointerEvents="none" style={[StyleSheet.absoluteFill, { opacity }]}>

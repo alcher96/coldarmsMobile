@@ -5,7 +5,6 @@ import { useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { ageOf, wrestlerPhotoUrl, type Wrestler } from '@/api/fight';
-import { IntroLoop } from '@/components/intro-loop';
 import { initialsOf, plural } from '@/lib/format';
 import { colors, fonts, radii } from '@/theme/tokens';
 
@@ -17,12 +16,10 @@ import { fc } from './palette';
 export function FighterSheet({
   side,
   wrestler,
-  intro,
   onClose,
 }: {
   side: Side | null;
   wrestler: Wrestler | null;
-  intro: boolean;
   onClose: () => void;
 }) {
   return (
@@ -31,7 +28,6 @@ export function FighterSheet({
         <Body
           side={side}
           w={wrestler}
-          intro={intro}
           onProfile={() => {
             onClose();
             router.push({ pathname: '/athlete/[id]', params: { id: side.id } });
@@ -42,7 +38,7 @@ export function FighterSheet({
   );
 }
 
-function Body({ side, w, intro, onProfile }: { side: Side; w: Wrestler | null; intro: boolean; onProfile: () => void }) {
+function Body({ side, w, onProfile }: { side: Side; w: Wrestler | null; onProfile: () => void }) {
   const [photoFailed, setPhotoFailed] = useState(false);
   const age = ageOf(w?.birthDate ?? null);
   const country = countryName(w?.country ?? null);
@@ -67,7 +63,6 @@ function Body({ side, w, intro, onProfile }: { side: Side; w: Wrestler | null; i
               onError={() => setPhotoFailed(true)}
             />
           ) : null}
-          {intro ? <IntroLoop id={side.id} /> : null}
         </View>
         <View style={styles.flex}>
           <View style={styles.metaRow}>
