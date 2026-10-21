@@ -132,9 +132,9 @@ function Content({ p }: { p: PublicProfile }) {
         </View>
       ) : (
         <View style={styles.list}>
-          <Section title="Избранные атлеты" count={p.favorites.length}>
+          <Section title="Отслеживаемые атлеты" count={p.favorites.length}>
             {p.favorites.length === 0 ? (
-              <Empty text="Пользователь пока никого не добавил в избранное" />
+              <Empty text="Пользователь пока никого не отслеживает" />
             ) : (
               p.favorites.map((f) => <FavoriteRow key={f.armWrestlerId} f={f} />)
             )}

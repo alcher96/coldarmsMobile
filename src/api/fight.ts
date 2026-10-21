@@ -1,4 +1,4 @@
-import { apiGet, apiPost, SITE_URL } from './http';
+import { apiFetch, apiGet, apiPost, SITE_URL } from './http';
 import type { Competition, Fight } from './competitions';
 
 /**
@@ -172,8 +172,12 @@ export type Comment = {
   authorAvatarUrl: string | null;
   text: string;
   createdAt: string;
+  parentCommentId?: string | null;
+  isDeleted?: boolean;
+  editedAt?: string | null;
   likes: number;
-  myReaction: boolean | string | null;
+  dislikes?: number;
+  myReaction: boolean | string | number | null;
   replies?: Comment[] | null;
 };
 
@@ -331,16 +335,45 @@ export async function loadVotes(fightId: string) {
   return apiGet<VoteStats>(`/api/fightsPredictions/${fightId}/vote-stats`);
 }
 
-export async function loadComments(fightId: string): Promise<Comment[]> {
-  return (await apiGet<Comment[]>(`/api/fights/${fightId}/comments?page=1&pageSize=50&sortBy=newest`)) ?? [];
+export type CommentSort = 'newest' | 'popular' | 'oldest';
+
+export async function loadComments(fightId: string, sort: CommentSort = 'newest'): Promise<Comment[]> {
+  return (await apiGet<Comment[]>(`/api/fights/${fightId}/comments?page=1&pageSize=50&sortBy=${sort}`)) ?? [];
 }
 
-export function postComment(fightId: string, text: string) {
-  return apiPost(`/api/fights/${fightId}/comments`, { text, parentCommentId: null });
+/** Новый комментарий; с `parentId` — ответ (сайт держит один уровень ответов). */
+export function postComment(fightId: string, text: string, parentId: string | null = null) {
+  return apiPost(`/api/fights/${fightId}/comments`, { text, parentCommentId: parentId });
 }
 
-export function likeComment(fightId: string, commentId: string) {
-  return apiPost(`/api/fights/${fightId}/comments/${commentId}/reaction`, { isLike: true });
+/** Лайк или дизлайк — тот же запрос, что у кнопок под комментарием на сайте. */
+export function reactComment(fightId: string, commentId: string, isLike: boolean) {
+  return apiPost(`/api/fights/${fightId}/comments/${commentId}/reaction`, { isLike });
+}
+
+/** Какую реакцию поставил я: API отдаёт то bool, то строку. */
+export function myReactionOf(c: Comment): 'like' | 'dislike' | null {
+  const r = c.myReaction;
+  if (r === true || r === 1 || (typeof r === 'string' && /^like$/i.test(r))) return 'like';
+  if (r === false || r === -1 || (typeof r === 'string' && /^dislike$/i.test(r))) return 'dislike';
+  return null;
+}
+
+export async function editComment(fightId: string, commentId: string, text: string) {
+  const r = await apiFetch(`/api/fights/${fightId}/comments/${commentId}/own`, {
+    method: 'PATCH',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ text }),
+  });
+  return r.ok;
+}
+
+export async function deleteComment(fightId: string, commentId: string) {
+  return (await apiFetch(`/api/fights/${fightId}/comments/${commentId}/own`, { method: 'DELETE' })).ok;
+}
+
+export function reportComment(fightId: string, commentId: string, reason: string) {
+  return apiPost(`/api/fights/${fightId}/comments/${commentId}/report`, { reason });
 }
 
 /** Показатели для руки боя (сайт: selectHand). */
@@ -359,7 +392,6 @@ export function votingOpen(competition: Competition | null) {
 }
 
 export const wrestlerPhotoUrl = (id: string) => `${SITE_URL}/api/ArmWrestler/${id}/photo/file`;
-export const introVideoUrl = (id: string) => `${SITE_URL}/api/ArmWrestler/${id}/video/file?format=mp4`;
 
 /** Возраст по дате рождения (вне рендера — `new Date()` здесь допустим). */
 export function ageOf(birthDate: string | null) {

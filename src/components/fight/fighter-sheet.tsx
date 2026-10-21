@@ -1,11 +1,11 @@
 import { router } from 'expo-router';
-import * as WebBrowser from 'expo-web-browser';
 import { Image } from 'expo-image';
-import { ArrowUpRight, Play } from 'lucide-react-native';
+import { ArrowUpRight } from 'lucide-react-native';
 import { useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
-import { ageOf, introVideoUrl, wrestlerPhotoUrl, type Wrestler } from '@/api/fight';
+import { ageOf, wrestlerPhotoUrl, type Wrestler } from '@/api/fight';
+import { IntroLoop } from '@/components/intro-loop';
 import { initialsOf, plural } from '@/lib/format';
 import { colors, fonts, radii } from '@/theme/tokens';
 
@@ -67,6 +67,7 @@ function Body({ side, w, intro, onProfile }: { side: Side; w: Wrestler | null; i
               onError={() => setPhotoFailed(true)}
             />
           ) : null}
+          {intro ? <IntroLoop id={side.id} /> : null}
         </View>
         <View style={styles.flex}>
           <View style={styles.metaRow}>
@@ -109,14 +110,6 @@ function Body({ side, w, intro, onProfile }: { side: Side; w: Wrestler | null; i
         <ArrowUpRight size={16} color={colors.lightText} strokeWidth={1.8} />
       </Pressable>
 
-      {intro ? (
-        <Pressable onPress={() => WebBrowser.openBrowserAsync(introVideoUrl(side.id))} style={styles.video}>
-          <View style={styles.play}>
-            <Play size={18} color={colors.text} fill={colors.text} />
-          </View>
-          <Text style={styles.videoLabel}>Интро бойца</Text>
-        </Pressable>
-      ) : null}
     </ScrollView>
   );
 }
@@ -169,21 +162,4 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   profileText: { fontFamily: fonts.bodySemi, fontSize: 15, color: colors.lightText },
-  video: {
-    marginTop: 16,
-    aspectRatio: 16 / 9,
-    borderRadius: radii.control,
-    backgroundColor: fc.chip,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  play: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: 'rgba(0,0,0,0.6)',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  videoLabel: { position: 'absolute', left: 12, bottom: 10, fontFamily: fonts.bodySemi, fontSize: 12, color: colors.text },
 });

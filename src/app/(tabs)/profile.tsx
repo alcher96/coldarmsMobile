@@ -148,7 +148,7 @@ function Hero({ page }: { page: ProfilePage }) {
       {p.bio ? <Text style={styles.bio}>{p.bio}</Text> : null}
       <View style={styles.stats}>
         <Stat value={`${unlocked}/${page.achievements.length}`} label="достижений" />
-        <Stat value={String(page.favorites.length)} label="в избранном" />
+        <Stat value={String(page.favorites.length)} label="отслеживает" />
         <Stat value={String(page.activity.length)} label="действий" />
       </View>
     </View>
@@ -162,7 +162,7 @@ const Stat = ({ value, label }: { value: string; label: string }) => (
   </View>
 );
 
-/** Избранные атлеты с отпиской. */
+/** Отслеживаемые атлеты с отпиской. */
 function Subscriptions({ initial }: { initial: Favorite[] }) {
   const [list, setList] = useState(initial);
   const remove = async (id: string) => {
@@ -173,15 +173,15 @@ function Subscriptions({ initial }: { initial: Favorite[] }) {
   return (
     <View style={styles.subs}>
       <Text style={styles.subsTitle}>
-        {list.length} {plural(list.length, ['атлет', 'атлета', 'атлетов'])} в избранном
+        Отслеживаете {list.length} {plural(list.length, ['атлета', 'атлетов', 'атлетов'])}
       </Text>
-      {list.length === 0 ? <Empty text="Добавляйте атлетов в избранное закладкой на их странице" /> : null}
+      {list.length === 0 ? <Empty text="Нажмите «Отслеживать» на странице атлета — здесь появятся его бои и результаты" /> : null}
       {list.map((f) => (
         <FavoriteRow
           key={f.armWrestlerId}
           f={f}
           right={
-            <Pressable onPress={() => remove(f.armWrestlerId)} hitSlop={10} style={styles.remove} accessibilityLabel="Убрать из избранного">
+            <Pressable onPress={() => remove(f.armWrestlerId)} hitSlop={10} style={styles.remove} accessibilityLabel="Перестать отслеживать">
               <X size={16} color={fc.muted} strokeWidth={2} />
             </Pressable>
           }

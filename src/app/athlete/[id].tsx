@@ -1,7 +1,7 @@
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { router, useLocalSearchParams } from 'expo-router';
-import { Bookmark, ChevronLeft } from 'lucide-react-native';
+import { Check, ChevronLeft, Plus } from 'lucide-react-native';
 import { useCallback, useRef, useState } from 'react';
 import {
   ActivityIndicator,
@@ -22,6 +22,7 @@ import { ageOf, wrestlerPhotoUrl, type Hand } from '@/api/fight';
 import { AthleteAnalytics, type AnalyticsCat } from '@/components/athlete/analytics';
 import { AthleteFights } from '@/components/athlete/fights';
 import { AthleteOverview } from '@/components/athlete/overview';
+import { IntroLoop } from '@/components/intro-loop';
 import { fc } from '@/components/fight/palette';
 import { useAsync } from '@/hooks/use-async';
 import { countryName, flagOf } from '@/lib/countries';
@@ -178,8 +179,20 @@ function TopBar({
         </View>
       )}
       {onFav ? (
-        <Pressable onPress={onFav} hitSlop={10} style={styles.fav} accessibilityLabel={fav ? 'Убрать из избранного' : 'В избранное'}>
-          <Bookmark size={20} color={colors.text} fill={fav ? colors.text : 'transparent'} strokeWidth={1.6} />
+        // Отслеживание — те же «избранные» сайта: по ним приходят уведомления о боях и результатах.
+        <Pressable
+          onPress={onFav}
+          hitSlop={6}
+          style={({ pressed }) => [styles.follow, fav && styles.followOn, pressed && styles.pressed]}
+          accessibilityRole="button"
+          accessibilityState={{ selected: !!fav }}
+          accessibilityLabel={fav ? 'Перестать отслеживать' : 'Отслеживать'}>
+          {fav ? (
+            <Check size={14} color={fc.muted} strokeWidth={2.4} />
+          ) : (
+            <Plus size={14} color={colors.text} strokeWidth={2.4} />
+          )}
+          <Text style={[styles.followText, fav && styles.followTextOn]}>{fav ? 'Отслеживаю' : 'Отслеживать'}</Text>
         </Pressable>
       ) : null}
     </View>
@@ -216,6 +229,7 @@ function Hero({ page }: { page: AthletePage }) {
             onError={() => setFailed(true)}
           />
         ) : null}
+        {page.hasVideo ? <IntroLoop id={a.armWrestlerId} /> : null}
         <LinearGradient
           colors={['rgba(11,11,12,0)', 'rgba(11,11,12,0.6)', colors.bg]}
           locations={[0.35, 0.7, 1]}
@@ -310,7 +324,19 @@ const styles = StyleSheet.create({
   logoBar: { width: 3, height: 22, borderRadius: 1, backgroundColor: colors.accent },
   logo: { fontFamily: fonts.display, fontSize: 21, textTransform: 'uppercase', color: colors.text },
   logoCom: { fontFamily: fonts.bodyMedium, fontSize: 10, color: fc.dim, marginTop: 6, marginLeft: -4 },
-  fav: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
+  follow: {
+    height: 32,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    paddingHorizontal: 12,
+    borderRadius: 16,
+    backgroundColor: colors.accent,
+  },
+  followOn: { backgroundColor: 'transparent', borderWidth: 1, borderColor: fc.borderStrong },
+  followText: { fontFamily: fonts.bodySemi, fontSize: 12, color: colors.text },
+  followTextOn: { color: fc.muted },
+  pressed: { opacity: 0.7 },
   photo: { height: 360, backgroundColor: '#141416', alignItems: 'center', justifyContent: 'center' },
   photoInitials: { fontFamily: fonts.display, fontSize: 48, color: fc.dim },
   heroText: { position: 'absolute', left: 20, right: 20, bottom: 12 },

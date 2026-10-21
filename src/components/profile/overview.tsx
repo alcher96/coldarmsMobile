@@ -27,16 +27,16 @@ const monthYear = (iso: string) => {
 
 export const winRateColor = (wr: number) => (wr >= 75 ? '#4AC87C' : wr >= 50 ? colors.text : colors.accent);
 
-/** Обзор профиля: достижения, точность прогнозов по турнирам, активность, избранные атлеты. */
+/** Обзор профиля: достижения, точность прогнозов по турнирам, активность, отслеживаемые атлеты. */
 export function ProfileOverview({ page, onAllFavorites }: { page: ProfilePage; onAllFavorites: () => void }) {
   return (
     <View style={styles.list}>
       <Achievements items={page.achievements} />
       <CompStats items={page.compStats} />
       <ActivityFeed items={page.activity} />
-      <Section title="Избранные атлеты" count={page.favorites.length}>
+      <Section title="Отслеживаемые атлеты" count={page.favorites.length}>
         {page.favorites.length === 0 ? (
-          <Empty text="Добавляйте атлетов в избранное закладкой на их странице" />
+          <Empty text="Нажмите «Отслеживать» на странице атлета — здесь появятся его бои и результаты" />
         ) : (
           <>
             {page.favorites.slice(0, 4).map((f) => (

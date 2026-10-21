@@ -53,7 +53,7 @@ export default function NotificationsScreen() {
             <Text style={styles.emptyIcon}>🔔</Text>
             <Text style={styles.emptyTitle}>Нет уведомлений</Text>
             <Text style={styles.emptyText}>
-              Здесь появятся бои и результаты избранных атлетов, ответы на комментарии, достижения и решения по правкам.
+              Здесь появятся бои и результаты отслеживаемых атлетов, ответы на комментарии, достижения и решения по правкам.
             </Text>
           </View>
         }

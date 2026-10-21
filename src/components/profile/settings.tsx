@@ -180,7 +180,7 @@ function EmailCard({ page }: { page: ProfilePage }) {
 }
 
 const TOGGLES: [keyof Settings, string, string][] = [
-  ['notifNewFights', 'Новые бои', 'Когда в кард добавляют бой с вашими избранными атлетами'],
+  ['notifNewFights', 'Новые бои', 'Когда в кард добавляют бой с атлетами, которых вы отслеживаете'],
   ['notifResults', 'Результаты', 'Итоги боёв, на которые вы делали прогноз'],
   ['notifReplies', 'Ответы', 'Ответы на ваши комментарии'],
   ['privacySearchVisible', 'Профиль в поиске', 'Другие пользователи могут найти вас'],

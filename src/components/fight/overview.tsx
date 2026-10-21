@@ -1,11 +1,11 @@
-import * as WebBrowser from 'expo-web-browser';
-import { ChevronDown, Play } from 'lucide-react-native';
+import { Image } from 'expo-image';
+import { ChevronDown } from 'lucide-react-native';
 import { useState } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import {
-  introVideoUrl,
   loadMiraAnalysis,
+  wrestlerPhotoUrl,
   loadVotes,
   VOTE_OUTCOMES,
   voteFight,
@@ -15,6 +15,7 @@ import {
   type Round,
   type VoteStats,
 } from '@/api/fight';
+import { IntroLoop } from '@/components/intro-loop';
 import { plural } from '@/lib/format';
 import { colors, fonts, radii } from '@/theme/tokens';
 
@@ -138,12 +139,11 @@ function ResultCard({ data, a, b }: { data: FightPage; a: Side; b: Side }) {
           <Text style={[styles.kicker, styles.introHead]}>ИНТРО БОЙЦОВ</Text>
           <View style={styles.intros}>
             {[a, b].map((s) => (
-              <Pressable key={s.id} onPress={() => WebBrowser.openBrowserAsync(introVideoUrl(s.id))} style={styles.intro}>
-                <View style={styles.play}>
-                  <Play size={14} color={colors.text} fill={colors.text} />
-                </View>
+              <View key={s.id} style={styles.intro}>
+                <Image source={wrestlerPhotoUrl(s.id)} style={StyleSheet.absoluteFill} contentFit="cover" contentPosition="top" />
+                <IntroLoop id={s.id} mode="show" />
                 <Text style={styles.introName}>{s.last}</Text>
-              </Pressable>
+              </View>
             ))}
           </View>
         </>
@@ -571,16 +571,7 @@ const styles = StyleSheet.create({
     aspectRatio: 16 / 10,
     borderRadius: radii.control,
     backgroundColor: fc.chip,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  play: {
-    width: 34,
-    height: 34,
-    borderRadius: 17,
-    backgroundColor: 'rgba(0,0,0,0.6)',
-    alignItems: 'center',
-    justifyContent: 'center',
+    overflow: 'hidden',
   },
   introName: {
     position: 'absolute',
