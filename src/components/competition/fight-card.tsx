@@ -5,9 +5,11 @@ import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-nati
 
 import type { CompetitionFight } from '@/api/competition';
 import { loadMira } from '@/api/fight';
+import { averageOdds, formatOdds, loadFightOdds } from '@/api/odds';
 import { FighterAvatar } from '@/components/tournaments/fighter-avatar';
 import { fc } from '@/components/fight/palette';
 import { useAsync } from '@/hooks/use-async';
+import { plural } from '@/lib/format';
 import { colors, fonts, radii } from '@/theme/tokens';
 
 const GREEN = '#4AC87C';
@@ -123,34 +125,65 @@ function Rounds({ f }: { f: CompetitionFight }) {
   );
 }
 
-/** Прогноз M.I.R.A. на предстоящий бой: грузится, только когда карточку раскрыли. */
+/** Прогноз M.I.R.A. и средний коэффициент букмекеров: грузятся, только когда карточку раскрыли. */
 function Prediction({ f }: { f: CompetitionFight }) {
-  const load = useCallback(() => loadMira(f.fightId), [f.fightId]);
+  const load = useCallback(
+    () => Promise.all([loadMira(f.fightId), loadFightOdds(f.fightId).catch(() => null)]),
+    [f.fightId],
+  );
   const { data, loading } = useAsync(load);
   if (loading && !data) return <ActivityIndicator color={colors.text} style={styles.loader} />;
-  if (!data) return <Text style={styles.empty}>Прогноз пока не готов</Text>;
+  const [mira, odds] = data ?? [null, null];
+  const avg = averageOdds(odds);
+  if (!mira && !avg) return <Text style={styles.empty}>Прогноз пока не готов</Text>;
   return (
     <View style={styles.prob}>
-      <Text style={styles.probLabel}>Вероятность победы · M.I.R.A.</Text>
-      {(
-        [
-          [f.wrestler1Name, data.w1Pct],
-          [f.wrestler2Name, data.w2Pct],
-        ] as const
-      ).map(([name, pct]) => {
-        const lead = pct >= 50;
-        return (
-          <View key={name} style={styles.probRow}>
-            <Text style={styles.probName} numberOfLines={1}>
-              {name}
-            </Text>
-            <View style={styles.probTrack}>
-              <View style={[styles.probFill, { width: `${pct}%`, backgroundColor: lead ? colors.text : '#5A5B61' }]} />
-            </View>
-            <Text style={[styles.probPct, !lead && { color: fc.dim }]}>{pct}%</Text>
+      {mira ? (
+        <>
+          <Text style={styles.probLabel}>Вероятность победы · M.I.R.A.</Text>
+          {(
+            [
+              [f.wrestler1Name, mira.w1Pct],
+              [f.wrestler2Name, mira.w2Pct],
+            ] as const
+          ).map(([name, pct]) => {
+            const lead = pct >= 50;
+            return (
+              <View key={name} style={styles.probRow}>
+                <Text style={styles.probName} numberOfLines={1}>
+                  {name}
+                </Text>
+                <View style={styles.probTrack}>
+                  <View style={[styles.probFill, { width: `${pct}%`, backgroundColor: lead ? colors.text : '#5A5B61' }]} />
+                </View>
+                <Text style={[styles.probPct, !lead && { color: fc.dim }]}>{pct}%</Text>
+              </View>
+            );
+          })}
+        </>
+      ) : null}
+      {avg ? (
+        <>
+          <Text style={[styles.probLabel, mira && styles.oddsLabel]}>
+            Средний коэффициент · {avg.sources} {plural(avg.sources, ['букмекер', 'букмекера', 'букмекеров'])}
+          </Text>
+          <View style={styles.oddsRow}>
+            {(
+              [
+                [f.wrestler1Name, avg.odds1, avg.odds1 <= avg.odds2],
+                [f.wrestler2Name, avg.odds2, avg.odds2 < avg.odds1],
+              ] as const
+            ).map(([name, v, fav], i) => (
+              <View key={i} style={[styles.oddsPill, i === 1 && styles.oddsPillRight]}>
+                <Text style={styles.oddsName} numberOfLines={1}>
+                  {split(name)[1] || name}
+                </Text>
+                <Text style={[styles.oddsValue, !fav && { color: fc.muted }]}>{formatOdds(v)}</Text>
+              </View>
+            ))}
           </View>
-        );
-      })}
+        </>
+      ) : null}
     </View>
   );
 }
@@ -245,4 +278,20 @@ const styles = StyleSheet.create({
   probTrack: { flex: 1, height: 8, borderRadius: 4, backgroundColor: fc.track, overflow: 'hidden' },
   probFill: { height: '100%', borderRadius: 4 },
   probPct: { width: 38, textAlign: 'right', fontFamily: fonts.display, fontSize: 15, color: colors.text },
+  oddsLabel: { marginTop: 6 },
+  oddsRow: { flexDirection: 'row', gap: 8 },
+  oddsPill: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 8,
+    height: 38,
+    paddingHorizontal: 12,
+    borderRadius: radii.control,
+    backgroundColor: fc.chip,
+  },
+  oddsPillRight: { flexDirection: 'row-reverse' },
+  oddsName: { flexShrink: 1, fontFamily: fonts.bodyMedium, fontSize: 12, color: fc.soft },
+  oddsValue: { fontFamily: fonts.display, fontSize: 17, color: colors.text },
 });

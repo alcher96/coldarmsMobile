@@ -13,6 +13,7 @@ import {
   type Round,
   type VoteStats,
 } from '@/api/fight';
+import { averageOdds, formatOdds, modelGap } from '@/api/odds';
 import { plural } from '@/lib/format';
 import { colors, fonts, radii } from '@/theme/tokens';
 
@@ -59,6 +60,7 @@ export function Overview({ data, a, b, onInfo, onCompareForm, onStyles }: Props)
           past={finished || !votingOpen(data.competition)}
         />
       ) : null}
+      <OddsCard data={data} a={a} b={b} onInfo={onInfo} />
       <View style={[styles.card, styles.formCard]}>
         {rows.map((r, i) => (
           <MirrorRow key={r.label} row={r} last={i === rows.length - 1} />
@@ -69,6 +71,66 @@ export function Overview({ data, a, b, onInfo, onCompareForm, onStyles }: Props)
       </View>
       <VoteCard data={data} a={a} b={b} />
       <CommentsCard fightId={data.fight.fightId} initial={data.comments} />
+    </View>
+  );
+}
+
+// ── Коэффициенты букмекеров ──
+
+const ODDS_INFO: Info = {
+  title: 'Коэффициенты',
+  body: [
+    'Коэффициенты букмекерских линий на победу каждого бойца. Чем ниже коэффициент, тем вероятнее победа по мнению рынка.',
+    '**Среднее** — среднее по открытым линиям. «—» — линия у букмекера закрыта.',
+    '**Расхождение с моделью** — насколько оценка рынка (без маржи букмекера) отличается от прогноза M.I.R.A., в процентных пунктах.',
+  ],
+};
+
+function OddsCard({ data, a, b, onInfo }: Pick<Props, 'data' | 'a' | 'b' | 'onInfo'>) {
+  const avg = averageOdds(data.odds);
+  if (!data.odds || !avg) return null;
+  const gap = data.mira ? modelGap(data.odds, data.mira.w1Pct) : null;
+  // Фаворит рынка — у кого коэффициент ниже: его колонка ярче.
+  const fav = avg.odds1 <= avg.odds2 ? 1 : 2;
+  const cell = (v: number | null, side: 1 | 2, strong?: boolean) => (
+    <Text style={[styles.oddsCell, strong && styles.oddsStrong, side !== fav && { color: fc.muted }]}>{formatOdds(v)}</Text>
+  );
+  return (
+    <View style={styles.card}>
+      <View style={styles.rowBetween}>
+        <Text style={styles.kicker}>КОЭФФИЦИЕНТЫ</Text>
+        <InfoButton onPress={() => onInfo(ODDS_INFO)} label="Коэффициенты" />
+      </View>
+      <View style={[styles.oddsRow, styles.oddsHead]}>
+        <Text style={styles.oddsLabel} />
+        <Text style={styles.oddsName} numberOfLines={1}>
+          {a.first}
+        </Text>
+        <Text style={styles.oddsName} numberOfLines={1}>
+          {b.first}
+        </Text>
+      </View>
+      {data.odds.bookmakers.map((bk) => {
+        const open = bk.marketStatus === 0;
+        return (
+          <View key={bk.bookmaker} style={styles.oddsRow}>
+            <Text style={styles.oddsLabel}>{bk.bookmaker}</Text>
+            {cell(open ? bk.odds1 : null, 1)}
+            {cell(open ? bk.odds2 : null, 2)}
+          </View>
+        );
+      })}
+      <View style={[styles.oddsRow, styles.oddsTotal]}>
+        <Text style={[styles.oddsLabel, styles.oddsLabelStrong]}>Среднее</Text>
+        {cell(avg.odds1, 1, true)}
+        {cell(avg.odds2, 2, true)}
+      </View>
+      {gap != null ? (
+        <View style={[styles.rowBetween, styles.oddsGap]}>
+          <Text style={styles.oddsLabel}>Расхождение с моделью</Text>
+          <Text style={styles.oddsGapValue}>{gap}%</Text>
+        </View>
+      ) : null}
     </View>
   );
 }
@@ -443,6 +505,16 @@ function VoteCard({ data, a, b }: { data: FightPage; a: Side; b: Side }) {
 const styles = StyleSheet.create({
   list: { padding: 16, paddingBottom: 28, gap: 10 },
   card: { backgroundColor: fc.card, borderWidth: 1, borderColor: fc.border, borderRadius: radii.card, padding: 16 },
+  oddsRow: { flexDirection: 'row', alignItems: 'center', height: 34 },
+  oddsHead: { marginTop: 6 },
+  oddsTotal: { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: fc.line, marginTop: 4, height: 40 },
+  oddsLabel: { flex: 1.2, fontFamily: fonts.bodyMedium, fontSize: 13, color: fc.muted },
+  oddsLabelStrong: { fontFamily: fonts.bodySemi, color: colors.text },
+  oddsName: { flex: 1, textAlign: 'right', fontFamily: fonts.bodySemi, fontSize: 12, color: fc.second },
+  oddsCell: { flex: 1, textAlign: 'right', fontFamily: fonts.display, fontSize: 17, color: colors.text },
+  oddsStrong: { fontSize: 20 },
+  oddsGap: { marginTop: 6 },
+  oddsGapValue: { fontFamily: fonts.display, fontSize: 17, color: colors.text },
   formCard: { paddingTop: 6, paddingBottom: 4 },
   rowBetween: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   baseline: { alignItems: 'baseline' },

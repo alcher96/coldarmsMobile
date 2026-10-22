@@ -1,5 +1,6 @@
 import { apiFetch, apiGet, apiPost, SITE_URL } from './http';
 import type { Competition, Fight } from './competitions';
+import { loadFightOdds, type FightOdds } from './odds';
 
 /**
  * Данные экрана боя — те же запросы, что делает страница боя сайта
@@ -195,6 +196,8 @@ export type FightPage = {
   comparison: Comparison | null;
   mira: Mira | null;
   votes: VoteStats | null;
+  /** Коэффициенты букмекеров; `null` — линии нет. */
+  odds: FightOdds | null;
   comments: Comment[];
   rounds: Round[];
   w1Score: number;
@@ -256,7 +259,7 @@ export async function loadFightPage(fightId: string): Promise<FightPage> {
   if (!fight) throw new Error('Бой не найден');
   const a = fight.wrestler1Id;
   const b = fight.wrestler2Id;
-  const [competition, wrestler1, wrestler2, rounds, comparison, statsA, statsB, stylesA, stylesB, matrix, mira, votes, comments] =
+  const [competition, wrestler1, wrestler2, rounds, comparison, statsA, statsB, stylesA, stylesB, matrix, mira, votes, odds, comments] =
     await Promise.all([
       safe(apiGet<Competition>(`/api/Competition/${fight.competitionId}`)),
       safe(apiGet<Wrestler>(`/api/ArmWrestler/${a}`)),
@@ -270,6 +273,7 @@ export async function loadFightPage(fightId: string): Promise<FightPage> {
       safe(apiGet<number[][]>(`/api/StyleMatrix/${a}/${b}`)),
       loadMira(fightId),
       safe(apiGet<VoteStats>(`/api/fightsPredictions/${fightId}/vote-stats`)),
+      safe(loadFightOdds(fightId)),
       loadComments(fightId).catch(() => []),
     ]);
   const list = (rounds ?? []).slice().sort((x, y) => x.roundNumber - y.roundNumber);
@@ -286,6 +290,7 @@ export async function loadFightPage(fightId: string): Promise<FightPage> {
     comparison,
     mira,
     votes,
+    odds,
     comments,
     rounds: list,
     w1Score: list.filter((r) => r.winnerName === fight.wrestler1Name).length,
