@@ -1,20 +1,85 @@
 import { router } from 'expo-router';
-import { useRef, useState } from 'react';
-import { Text, View, type TextInput } from 'react-native';
+import { Send } from 'lucide-react-native';
+import { useEffect, useRef, useState } from 'react';
+import { Linking, Text, View, type TextInputInstance } from 'react-native';
 
-import { AuthShell, ErrorBox, Field, PrimaryButton, TextLink, authStyles } from '@/components/auth/form';
+import { pollTelegramLogin, startTelegramLogin } from '@/api/auth';
 import { useAuth } from '@/auth/auth-context';
+import {
+  AuthShell,
+  Divider,
+  ErrorBox,
+  Field,
+  PrimaryButton,
+  SecondaryButton,
+  TextLink,
+  authStyles,
+} from '@/components/auth/form';
+
+// Как на сайте: опрос раз в 2 секунды, не дольше 5 минут.
+const TG_POLL_MS = 2000;
+const TG_POLL_TRIES = 150;
 
 const EMAIL_RE = /^[^@\s]+@[^@\s]+$/;
 
 export default function LoginScreen() {
-  const { signIn } = useAuth();
+  const { signIn, completeSignIn } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [errors, setErrors] = useState<{ email?: string; password?: string }>({});
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  const passwordRef = useRef<TextInput>(null);
+  const passwordRef = useRef<TextInputInstance>(null);
+  const [tgBusy, setTgBusy] = useState(false);
+  const tgTimer = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  const stopTelegram = () => {
+    if (tgTimer.current) clearInterval(tgTimer.current);
+    tgTimer.current = null;
+  };
+  // Ушли с экрана — опрос больше не нужен.
+  useEffect(() => stopTelegram, []);
+
+  const telegram = async () => {
+    if (tgBusy) return;
+    setError(null);
+    setTgBusy(true);
+    try {
+      const { deepLink, token } = await startTelegramLogin();
+      await Linking.openURL(deepLink);
+      let tries = 0;
+      let inFlight = false;
+      tgTimer.current = setInterval(async () => {
+        if (inFlight) return;
+        if (++tries > TG_POLL_TRIES) {
+          stopTelegram();
+          setTgBusy(false);
+          return;
+        }
+        inFlight = true;
+        try {
+          const status = await pollTelegramLogin(token);
+          if (status === 'ok') {
+            stopTelegram();
+            await completeSignIn();
+          } else if (status === 'expired') {
+            stopTelegram();
+            setTgBusy(false);
+            setError('Время на подтверждение истекло. Попробуйте ещё раз');
+          }
+        } catch (err) {
+          stopTelegram();
+          setTgBusy(false);
+          setError((err as Error).message || 'Не удалось войти через Telegram');
+        } finally {
+          inFlight = false;
+        }
+      }, TG_POLL_MS);
+    } catch (err) {
+      setTgBusy(false);
+      setError((err as Error).message || 'Не удалось открыть Telegram');
+    }
+  };
 
   const submit = async () => {
     const e = email.trim();
@@ -81,6 +146,18 @@ export default function LoginScreen() {
         <TextLink onPress={() => router.push('/forgot-password')}>Забыли пароль?</TextLink>
       </View>
       <PrimaryButton title="Войти" onPress={submit} busy={busy} />
+      <Divider label="ИЛИ" />
+      <SecondaryButton
+        title={tgBusy ? 'Подтвердите вход в боте' : 'Войти через Telegram'}
+        onPress={telegram}
+        busy={tgBusy}
+        icon={<Send size={18} color="#fff" strokeWidth={2} />}
+      />
+      {tgBusy ? (
+        <Text style={authStyles.muted}>
+          Откроется бот Cold Arms в Telegram — нажмите в нём «Подтвердить» и вернитесь в приложение.
+        </Text>
+      ) : null}
     </AuthShell>
   );
 }

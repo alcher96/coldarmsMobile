@@ -7,7 +7,6 @@ import {
   Keyboard,
   Platform,
   Pressable,
-  ScrollView,
   StyleSheet,
   Text,
   TextInput,
@@ -24,13 +23,13 @@ import {
   reportComment,
   type Comment,
   type CommentSort,
-} from '@/api/fight';
+} from '@/api/comments';
 import { loadMyId } from '@/api/profile';
 import { useAsync } from '@/hooks/use-async';
 import { initialsOf, timeAgo } from '@/lib/format';
 import { colors, fonts, radii } from '@/theme/tokens';
 
-import { Sheet } from './info-sheet';
+import { Sheet, SheetScrollView } from './info-sheet';
 import { fc } from './palette';
 
 const count = (list: Comment[]) => list.reduce((n, c) => n + 1 + (c.replies?.length ?? 0), 0);
@@ -46,7 +45,8 @@ const SORTS: { key: CommentSort; label: string }[] = [
 ];
 
 /** Обсуждение боя: превью на «Обзоре», полный список и отправка — в шторке. */
-export function CommentsCard({ fightId, initial }: { fightId: string; initial: Comment[] }) {
+/** `api` — адрес обсуждения: fightComments(id) или newsComments(id). */
+export function CommentsCard({ api, initial }: { api: string; initial: Comment[] }) {
   const [comments, setComments] = useState(initial);
   const [open, setOpen] = useState(false);
   const total = count(comments);
@@ -67,7 +67,7 @@ export function CommentsCard({ fightId, initial }: { fightId: string; initial: C
         <Text style={styles.chevron}>›</Text>
       </Pressable>
       <CommentsSheet
-        fightId={fightId}
+        api={api}
         visible={open}
         comments={comments}
         onChange={setComments}
@@ -81,13 +81,13 @@ export function CommentsCard({ fightId, initial }: { fightId: string; initial: C
 type Draft = { kind: 'new' } | { kind: 'reply'; parentId: string; to: string } | { kind: 'edit'; id: string };
 
 function CommentsSheet({
-  fightId,
+  api,
   visible,
   comments,
   onChange,
   onClose,
 }: {
-  fightId: string;
+  api: string;
   visible: boolean;
   comments: Comment[];
   onChange: (c: Comment[]) => void;
@@ -103,7 +103,7 @@ function CommentsSheet({
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const reload = async (s = sort) => onChange(await loadComments(fightId, s).catch(() => comments));
+  const reload = async (s = sort) => onChange(await loadComments(api, s).catch(() => comments));
 
   const resetDraft = () => {
     setDraft({ kind: 'new' });
@@ -132,9 +132,9 @@ function CommentsSheet({
     setError(null);
     try {
       if (draft.kind === 'edit') {
-        if (!(await editComment(fightId, draft.id, value))) throw new Error('edit');
+        if (!(await editComment(api, draft.id, value))) throw new Error('edit');
       } else {
-        const res = await postComment(fightId, value, draft.kind === 'reply' ? draft.parentId : null);
+        const res = await postComment(api, value, draft.kind === 'reply' ? draft.parentId : null);
         if (!res.ok) {
           setError(res.status === 403 ? 'Подтвердите почту, чтобы комментировать' : 'Не удалось отправить');
           return;
@@ -151,7 +151,7 @@ function CommentsSheet({
 
   const react = async (id: string, like: boolean) => {
     try {
-      if ((await reactComment(fightId, id, like)).ok) await reload();
+      if ((await reactComment(api, id, like)).ok) await reload();
     } catch {}
   };
 
@@ -176,7 +176,7 @@ function CommentsSheet({
         text: 'Удалить',
         style: 'destructive',
         onPress: async () => {
-          if (await deleteComment(fightId, c.id).catch(() => false)) {
+          if (await deleteComment(api, c.id).catch(() => false)) {
             if (draft.kind === 'edit' && draft.id === c.id) resetDraft();
             await reload();
           } else Alert.alert('Не удалось удалить комментарий');
@@ -189,7 +189,7 @@ function CommentsSheet({
     setMenu(null);
     setReporting(false);
     setReported((s) => new Set(s).add(c.id));
-    await reportComment(fightId, c.id, reason).catch(() => null);
+    await reportComment(api, c.id, reason).catch(() => null);
   };
 
   const rowProps = (c: Comment) => ({
@@ -226,7 +226,7 @@ function CommentsSheet({
             </Pressable>
           ))}
         </View>
-        <ScrollView style={styles.flex} contentContainerStyle={styles.list} keyboardShouldPersistTaps="handled">
+        <SheetScrollView style={styles.flex} contentContainerStyle={styles.list} keyboardShouldPersistTaps="handled">
           {comments.length === 0 ? <Text style={styles.empty}>Пока нет комментариев — начни первым</Text> : null}
           {comments.map((c) => (
             <View key={c.id}>
@@ -238,7 +238,7 @@ function CommentsSheet({
               ))}
             </View>
           ))}
-        </ScrollView>
+        </SheetScrollView>
 
         {menu ? (
           <View style={styles.menu}>

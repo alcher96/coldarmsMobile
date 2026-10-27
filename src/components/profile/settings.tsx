@@ -1,6 +1,6 @@
 import { Check, ChevronDown } from 'lucide-react-native';
 import { useState } from 'react';
-import { ActivityIndicator, Linking, Pressable, ScrollView, StyleSheet, Switch, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, Linking, Pressable, StyleSheet, Switch, Text, TextInput, View } from 'react-native';
 
 import {
   resendVerification,
@@ -13,7 +13,7 @@ import {
   type Settings,
   type TelegramStatus,
 } from '@/api/profile';
-import { Sheet } from '@/components/fight/info-sheet';
+import { Sheet, SheetScrollView } from '@/components/fight/info-sheet';
 import { fc } from '@/components/fight/palette';
 import { countryName, flagOf } from '@/lib/countries';
 import { colors, fonts, radii } from '@/theme/tokens';
@@ -122,7 +122,7 @@ function ProfileForm({ page, onSaved }: { page: ProfilePage; onSaved: () => void
 
       <Sheet visible={picker} onClose={() => setPicker(false)} bare>
         <Text style={styles.sheetTitle}>Страна</Text>
-        <ScrollView contentContainerStyle={styles.countryList}>
+        <SheetScrollView contentContainerStyle={styles.countryList}>
           {[null, ...COUNTRY_CODES.slice().sort((a, b) => (countryName(a) ?? a).localeCompare(countryName(b) ?? b, 'ru'))].map(
             (code) => (
               <Pressable
@@ -141,7 +141,7 @@ function ProfileForm({ page, onSaved }: { page: ProfilePage; onSaved: () => void
               </Pressable>
             ),
           )}
-        </ScrollView>
+        </SheetScrollView>
       </Sheet>
     </Section>
   );

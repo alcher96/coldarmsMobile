@@ -1,7 +1,9 @@
 import type { Competition, Fight } from './competitions';
 import { apiGet, apiGetPaged } from './http';
+import type { NewsItem } from './news';
 
 export type { Competition } from './competitions';
+export type { NewsItem } from './news';
 
 export type RankingEntry = {
   armWrestlerId: string;
@@ -14,14 +16,6 @@ export type RankingEntry = {
 
 type TopByCategories = Record<string, { entries?: RankingEntry[] } | null>;
 
-export type NewsItem = {
-  id: string;
-  title: string;
-  summary: string | null;
-  category: string | null;
-  publishedAt: string;
-  coverImagePath: string | null;
-};
 
 export type HomeData = {
   competition: Competition | null;

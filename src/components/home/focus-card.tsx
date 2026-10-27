@@ -1,45 +1,32 @@
 import { Image } from 'expo-image';
+import { router } from 'expo-router';
 import { ArrowUpRight, ChevronRight } from 'lucide-react-native';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
-import type { NewsItem } from '@/api/home';
-import { SITE_URL } from '@/api/http';
+import { newsCoverUrl, newsMonogram, type NewsItem } from '@/api/news';
 import { Card, Title } from '@/components/ui';
 import { colors, fonts, radii } from '@/theme/tokens';
 
-/** Буквы для плашки без обложки: «East vs West 27» → «EVW», «Обновление 27.09» → «ОБН». */
-function monogram(title: string) {
-  const words = title.split(/\s+/).filter((w) => /^\p{L}/u.test(w));
-  if (words.length === 1) return words[0].slice(0, 3).toUpperCase();
-  return words
-    .slice(0, 3)
-    .map((w) => w[0].toUpperCase())
-    .join('');
-}
-
-/** Сайт кладёт coverImagePath в <img src> как есть — путь от корня сайта или полный URL. */
-function coverUrl(path: string | null) {
-  if (!path) return null;
-  return /^https?:\/\//.test(path) ? path : `${SITE_URL}/${path.replace(/^\/+/, '')}`;
-}
-
-export function FocusCard({ news, onAll }: { news: NewsItem; onAll?: () => void }) {
-  const cover = coverUrl(news.coverImagePath);
+/** «В фокусе» на главной: свежая новость; «Новости» — весь список. */
+export function FocusCard({ news }: { news: NewsItem }) {
+  const cover = newsCoverUrl(news.coverImagePath);
   return (
     <Card>
       <View style={styles.head}>
         <Title style={styles.title}>В фокусе</Title>
-        <Pressable style={styles.link} onPress={onAll} hitSlop={8}>
+        <Pressable style={styles.link} onPress={() => router.push('/news')} hitSlop={8}>
           <Text style={styles.linkText}>Новости</Text>
           <ArrowUpRight size={12} color={colors.textMuted} strokeWidth={1.6} />
         </Pressable>
       </View>
-      <Pressable style={styles.item}>
+      <Pressable
+        style={styles.item}
+        onPress={() => router.push({ pathname: '/news/[id]', params: { id: news.id } })}>
         <View style={styles.thumb}>
           {cover ? (
             <Image source={cover} style={StyleSheet.absoluteFill} contentFit="cover" />
           ) : (
-            <Text style={styles.mono}>{monogram(news.title)}</Text>
+            <Text style={styles.mono}>{newsMonogram(news.title)}</Text>
           )}
         </View>
         <View style={styles.body}>

@@ -110,11 +110,13 @@ export type AppRoute =
   | { pathname: '/fight/[id]'; params: { id: string } }
   | { pathname: '/athlete/[id]'; params: { id: string } }
   | { pathname: '/competition/[id]'; params: { id: string } }
+  | { pathname: '/news/[id]'; params: { id: string } }
+  | { pathname: '/news' }
   | { pathname: '/profile' };
 
 const GUID = '[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}';
 
-/** Ссылку сайта (/fight/slug/id, /athlete/…, /competition/…, /profile) — в экран приложения. */
+/** Ссылку сайта (/fight/slug/id, /athlete/…, /competition/…, /news/…, /profile) — в экран приложения. */
 export function routeFor(linkUrl: string | null): AppRoute | null {
   if (!linkUrl) return null;
   const path = linkUrl.replace(/^https?:\/\/[^/]+/i, '').replace(/^\/en(?=\/)/, '').split(/[?#]/)[0];
@@ -125,6 +127,9 @@ export function routeFor(linkUrl: string | null): AppRoute | null {
   if (athlete) return { pathname: '/athlete/[id]', params: { id: athlete } };
   const comp = m('competition') ?? m('competition-details');
   if (comp) return { pathname: '/competition/[id]', params: { id: comp } };
+  const news = m('news');
+  if (news) return { pathname: '/news/[id]', params: { id: news } };
+  if (path === '/news') return { pathname: '/news' };
   if (path.startsWith('/profile')) return { pathname: '/profile' };
   return null;
 }

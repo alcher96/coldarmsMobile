@@ -13,6 +13,7 @@ import {
   type Round,
   type VoteStats,
 } from '@/api/fight';
+import { fightComments } from '@/api/comments';
 import { averageOdds, formatOdds, modelGap } from '@/api/odds';
 import { plural } from '@/lib/format';
 import { colors, fonts, radii } from '@/theme/tokens';
@@ -70,7 +71,7 @@ export function Overview({ data, a, b, onInfo, onCompareForm, onStyles }: Props)
         </Pressable>
       </View>
       <VoteCard data={data} a={a} b={b} />
-      <CommentsCard fightId={data.fight.fightId} initial={data.comments} />
+      <CommentsCard api={fightComments(data.fight.fightId)} initial={data.comments} />
     </View>
   );
 }

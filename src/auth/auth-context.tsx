@@ -2,7 +2,7 @@ import { createContext, use, useCallback, useEffect, useMemo, useState, type Rea
 
 import * as authApi from '@/api/auth';
 import { resetMyId } from '@/api/profile';
-import { setSessionExpiredHandler } from '@/api/http';
+import { refreshSession, setSessionExpiredHandler } from '@/api/http';
 import { loadTokens } from '@/api/session';
 
 type Status = 'loading' | 'signedIn' | 'signedOut';
@@ -11,7 +11,11 @@ type AuthValue = {
   status: Status;
   user: authApi.User | null;
   signIn: (email: string, password: string) => Promise<void>;
+  /** Сессию уже выдал сервер (вход через Telegram) — узнаём, кто вошёл, и пускаем в приложение. */
+  completeSignIn: () => Promise<void>;
   signOut: () => Promise<void>;
+  /** Перечитать /auth/me — например, после подтверждения почты. */
+  refreshUser: () => Promise<void>;
 };
 
 const AuthContext = createContext<AuthValue | null>(null);
@@ -52,12 +56,29 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setStatus('signedIn');
   }, []);
 
+  const completeSignIn = useCallback(async () => {
+    const me = await authApi.fetchMe();
+    if (!me) throw new authApi.AuthError('Не удалось войти. Попробуйте ещё раз');
+    setUser(me);
+    setStatus('signedIn');
+  }, []);
+
   const signOut = useCallback(async () => {
     await authApi.logout();
     signedOut();
   }, [signedOut]);
 
-  const value = useMemo(() => ({ status, user, signIn, signOut }), [status, user, signIn, signOut]);
+  const refreshUser = useCallback(async () => {
+    // Свежий email_verified приходит только в новом токене — сначала перевыпускаем сессию.
+    await refreshSession().catch(() => false);
+    const me = await authApi.fetchMe().catch(() => null);
+    if (me) setUser(me);
+  }, []);
+
+  const value = useMemo(
+    () => ({ status, user, signIn, completeSignIn, signOut, refreshUser }),
+    [status, user, signIn, completeSignIn, signOut, refreshUser],
+  );
   return <AuthContext value={value}>{children}</AuthContext>;
 }
 

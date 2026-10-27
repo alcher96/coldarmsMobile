@@ -11,6 +11,7 @@ import {
   TextInput,
   View,
   type TextInputProps,
+  type TextInputInstance,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -56,7 +57,7 @@ export function Field({
   secure,
   ref,
   ...input
-}: TextInputProps & { label: string; error?: string; secure?: boolean; ref?: Ref<TextInput> }) {
+}: TextInputProps & { label: string; error?: string; secure?: boolean; ref?: Ref<TextInputInstance> }) {
   const [focused, setFocused] = useState(false);
   const [hidden, setHidden] = useState(true);
   return (
@@ -106,6 +107,41 @@ export function PrimaryButton({ title, onPress, busy }: { title: string; onPress
       accessibilityRole="button">
       {busy ? <ActivityIndicator color={colors.text} /> : <Text style={styles.buttonText}>{title}</Text>}
     </Pressable>
+  );
+}
+
+/** Вторичная кнопка — вход через сторонний сервис (Telegram). */
+export function SecondaryButton({
+  title,
+  onPress,
+  busy,
+  icon,
+}: {
+  title: string;
+  onPress: () => void;
+  busy?: boolean;
+  icon?: ReactNode;
+}) {
+  return (
+    <Pressable
+      onPress={onPress}
+      disabled={busy}
+      style={({ pressed }) => [styles.button, styles.secondary, (pressed || busy) && styles.buttonPressed]}
+      accessibilityRole="button">
+      {busy ? <ActivityIndicator color={colors.text} /> : icon}
+      <Text style={styles.buttonText}>{title}</Text>
+    </Pressable>
+  );
+}
+
+/** «или» между формой и входом через сторонние сервисы. */
+export function Divider({ label }: { label: string }) {
+  return (
+    <View style={styles.divider}>
+      <View style={styles.dividerLine} />
+      <Text style={styles.dividerText}>{label}</Text>
+      <View style={styles.dividerLine} />
+    </View>
   );
 }
 
@@ -202,6 +238,10 @@ const styles = StyleSheet.create({
   },
   buttonPressed: { opacity: 0.8 },
   buttonText: { fontFamily: fonts.display, fontSize: 17, letterSpacing: 0.5, textTransform: 'uppercase', color: colors.text },
+  secondary: { flexDirection: 'row', gap: 10, backgroundColor: '#229ED9' },
+  divider: { flexDirection: 'row', alignItems: 'center', gap: 12, marginVertical: 4 },
+  dividerLine: { flex: 1, height: StyleSheet.hairlineWidth, backgroundColor: colors.cardBorder },
+  dividerText: { fontFamily: fonts.bodySemi, fontSize: 11, letterSpacing: 1, color: colors.textMuted },
   errorBox: {
     flexDirection: 'row',
     alignItems: 'center',

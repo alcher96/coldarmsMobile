@@ -1,5 +1,18 @@
-import { useEffect, useState, type ReactNode } from 'react';
-import { ActivityIndicator, Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { createContext, use, useEffect, useMemo, useRef, useState, type ComponentProps, type ReactNode, type RefObject } from 'react';
+import {
+  ActivityIndicator,
+  Animated,
+  Modal,
+  PanResponder,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  useWindowDimensions,
+  View,
+  type ScrollViewInstance,
+  type ViewInstance,
+} from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { colors, fonts, radii } from '@/theme/tokens';
@@ -16,8 +29,56 @@ export type Info = {
 };
 
 /**
+ * Геометрия шторки: где в ней список. Касания в списке — прокрутка, остальные — свайп шторки.
+ * Список меряется относительно самой шторки, а не экрана: так замер не зависит от того,
+ * что шторка в этот момент ещё выезжает. Шторка прижата к низу окна, её верх — высота окна
+ * минус высота шторки.
+ */
+class SheetGeometry {
+  windowH = 0;
+  sheetH = 0;
+  listTop = Infinity;
+  listBottom = -Infinity;
+  setWindow(h: number) {
+    this.windowH = h;
+  }
+  setSheetHeight(h: number) {
+    this.sheetH = h;
+  }
+  setList(top: number, bottom: number) {
+    this.listTop = top;
+    this.listBottom = bottom;
+  }
+  inList(pageY: number) {
+    const y = pageY - (this.windowH - this.sheetH);
+    return y >= this.listTop && y <= this.listBottom;
+  }
+}
+const SheetContext = createContext<{ geo: SheetGeometry; sheet: RefObject<ViewInstance | null> } | null>(null);
+
+/** ScrollView для содержимого шторки: его касания листают список, остальные — тянут шторку. */
+export function SheetScrollView({ onLayout, ...props }: ComponentProps<typeof ScrollView>) {
+  const ctx = use(SheetContext);
+  const ref = useRef<ScrollViewInstance>(null);
+  // Ушёл список — касания снова тянут шторку.
+  useEffect(() => () => ctx?.geo.setList(Infinity, -Infinity), [ctx]);
+  return (
+    <ScrollView
+      ref={ref}
+      {...props}
+      onLayout={(e) => {
+        const sheet = ctx?.sheet.current;
+        if (sheet) ref.current?.measureLayout(sheet, (_x, y, _w, h) => ctx.geo.setList(y, y + h));
+        onLayout?.(e);
+      }}
+    />
+  );
+}
+
+/**
  * Нижняя шторка поверх экрана. `tall` — высокая шторка на всю доступную высоту (комментарии),
  * `bare` — без внутренних отступов (содержимое само задаёт поля).
+ * Закрывается тапом по фону, «Назад» или свайпом вниз.
  */
 export function Sheet({
   visible,
@@ -33,20 +94,59 @@ export function Sheet({
   bare?: boolean;
 }) {
   const insets = useSafeAreaInsets();
+  const { height } = useWindowDimensions();
+  const [drag] = useState(() => new Animated.Value(0));
+  const [geo] = useState(() => new SheetGeometry());
+  const sheet = useRef<ViewInstance>(null);
+  const ctx = useMemo(() => ({ geo, sheet }), [geo]);
+
+  // Каждое открытие — с исходной позиции, даже если прошлое закрыли свайпом.
+  useEffect(() => {
+    if (visible) drag.setValue(0);
+  }, [visible, drag]);
+
+  // Во время свайпа экран не перерисовывается (двигается Animated-значение), так что жест не сбросится.
+  const pan = useMemo(
+    () =>
+      PanResponder.create({
+        // Касание достаётся шторке, если его не забрал элемент внутри (кнопка) и оно не в списке —
+        // иначе список перестал бы листаться.
+        onStartShouldSetPanResponder: (e) => !geo.inList(e.nativeEvent.pageY),
+        onPanResponderMove: (_, g) => drag.setValue(Math.max(0, g.dy)),
+        onPanResponderRelease: (_, g) => {
+          if (g.dy > 120 || g.vy > 1) {
+            Animated.timing(drag, { toValue: height, duration: 180, useNativeDriver: true }).start(() => onClose());
+          } else {
+            Animated.spring(drag, { toValue: 0, useNativeDriver: true, bounciness: 4 }).start();
+          }
+        },
+        onPanResponderTerminate: () => Animated.spring(drag, { toValue: 0, useNativeDriver: true }).start(),
+      }),
+    [drag, height, onClose, geo],
+  );
+
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose} statusBarTranslucent>
-      <Pressable style={styles.backdrop} onPress={onClose} accessibilityLabel="Закрыть" />
+      <Pressable
+        style={styles.backdrop}
+        onPress={onClose}
+        onLayout={(e) => geo.setWindow(e.nativeEvent.layout.height)}
+        accessibilityLabel="Закрыть"
+      />
       {visible ? (
-        <View
+        <Animated.View
+          ref={sheet}
+          onLayout={(e) => geo.setSheetHeight(e.nativeEvent.layout.height)}
+          {...pan.panHandlers}
           style={[
             styles.sheet,
             tall && { top: insets.top + 60, maxHeight: undefined },
             bare && { paddingHorizontal: 0 },
-            { paddingBottom: (tall ? 0 : 24) + insets.bottom },
+            { paddingBottom: (tall ? 0 : 24) + insets.bottom, transform: [{ translateY: drag }] },
           ]}>
           <View style={styles.handle} />
-          {children}
-        </View>
+          <SheetContext value={ctx}>{children}</SheetContext>
+        </Animated.View>
       ) : null}
     </Modal>
   );
@@ -59,9 +159,9 @@ export function InfoSheet({ info, onClose }: { info: Info | null; onClose: () =>
       {info ? (
         <>
           <Text style={styles.title}>{info.title}</Text>
-          <ScrollView style={styles.scroll} contentContainerStyle={styles.body}>
+          <SheetScrollView style={styles.scroll} contentContainerStyle={styles.body}>
             <Body body={info.body} />
-          </ScrollView>
+          </SheetScrollView>
         </>
       ) : null}
     </Sheet>

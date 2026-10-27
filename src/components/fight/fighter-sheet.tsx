@@ -2,13 +2,13 @@ import { router } from 'expo-router';
 import { Image } from 'expo-image';
 import { ArrowUpRight } from 'lucide-react-native';
 import { useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { ageOf, wrestlerPhotoUrl, type Wrestler } from '@/api/fight';
 import { initialsOf, plural } from '@/lib/format';
 import { colors, fonts, radii } from '@/theme/tokens';
 
-import { Sheet } from './info-sheet';
+import { Sheet, SheetScrollView } from './info-sheet';
 import { countryName, feet, inches, lb, type Side } from './model';
 import { fc } from './palette';
 
@@ -50,7 +50,7 @@ function Body({ side, w, onProfile }: { side: Side; w: Wrestler | null; onProfil
   ];
 
   return (
-    <ScrollView contentContainerStyle={styles.content}>
+    <SheetScrollView contentContainerStyle={styles.content}>
       <View style={styles.head}>
         <View style={styles.photo}>
           <Text style={styles.initials}>{initialsOf(side.full)}</Text>
@@ -105,7 +105,7 @@ function Body({ side, w, onProfile }: { side: Side; w: Wrestler | null; onProfil
         <ArrowUpRight size={16} color={colors.lightText} strokeWidth={1.8} />
       </Pressable>
 
-    </ScrollView>
+    </SheetScrollView>
   );
 }
 

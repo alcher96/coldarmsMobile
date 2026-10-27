@@ -1,7 +1,7 @@
 import { router } from 'expo-router';
 import { ChevronDown } from 'lucide-react-native';
 import { useCallback, useState } from 'react';
-import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Pressable, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 
 import type { CompetitionFight } from '@/api/competition';
 import { loadMira } from '@/api/fight';
@@ -10,9 +10,12 @@ import { FighterAvatar } from '@/components/tournaments/fighter-avatar';
 import { fc } from '@/components/fight/palette';
 import { useAsync } from '@/hooks/use-async';
 import { plural } from '@/lib/format';
+import { columnScale, fitText, SMALL_TEXT_SCALE } from '@/lib/text';
 import { colors, fonts, radii } from '@/theme/tokens';
 
 const GREEN = '#4AC87C';
+const AMBER = '#E8B931';
+const RED = '#E0645C';
 
 const split = (name: string) => {
   const i = name.indexOf(' ');
@@ -36,20 +39,23 @@ export function CompetitionFightCard({ f, initiallyOpen }: { f: CompetitionFight
           <Side id={f.wrestler1Id} name={f.wrestler1Name} win={w1} dim={done && !w1} />
           <View style={styles.mid}>
             {done ? (
-              <Text style={styles.score}>
+              <Text style={styles.score} maxFontSizeMultiplier={SMALL_TEXT_SCALE}>
                 <Text style={{ color: w1 ? GREEN : fc.dim }}>{f.w1Score}</Text>
                 <Text style={styles.dash}>–</Text>
                 <Text style={{ color: w2 ? GREEN : fc.dim }}>{f.w2Score}</Text>
               </Text>
             ) : (
-              <Text style={styles.vs}>VS</Text>
+              <Text style={styles.vs} maxFontSizeMultiplier={SMALL_TEXT_SCALE}>
+                VS
+              </Text>
             )}
-            <Text style={styles.meta}>
+            <Text style={styles.meta} maxFontSizeMultiplier={SMALL_TEXT_SCALE} numberOfLines={1} {...fitText}>
               {[f.bestOf ? `Bo${f.bestOf}` : null, handLabel(f.hand)].filter(Boolean).join(' · ')}
             </Text>
           </View>
           <Side id={f.wrestler2Id} name={f.wrestler2Name} win={w2} dim={done && !w2} right />
         </View>
+        {done && f.rounds.length ? <Track f={f} /> : null}
         <View style={[styles.chevron, open && styles.chevronOpen]}>
           <ChevronDown size={16} color={open ? colors.text : fc.dim} strokeWidth={1.8} />
         </View>
@@ -64,13 +70,21 @@ export function CompetitionFightCard({ f, initiallyOpen }: { f: CompetitionFight
             {done ? (
               <View style={styles.winner}>
                 <View style={styles.winnerDot} />
+                {/* Фамилия, а не полное имя: на узком экране полное сжалось бы до нечитаемого. */}
                 <Text style={styles.winnerText} numberOfLines={1}>
-                  Победа · {f.winner}
+                  Победа · {split(f.winner!)[1] || f.winner}
                 </Text>
               </View>
             ) : null}
           </View>
-          {done ? <Rounds f={f} /> : <Prediction f={f} />}
+          {done ? (
+            <>
+              <Verdict f={f} />
+              <Rounds f={f} />
+            </>
+          ) : (
+            <Prediction f={f} />
+          )}
         </View>
       ) : null}
     </View>
@@ -88,11 +102,11 @@ function Side({ id, name, win, dim, right }: { id: string; name: string; win: bo
         {win ? <View style={styles.winBadge} /> : null}
       </View>
       <View style={[styles.names, right && styles.alignRight]}>
-        <Text style={[styles.first, dim && styles.dimText, right && styles.textRight]} numberOfLines={1}>
+        <Text style={[styles.first, dim && styles.dimText, right && styles.textRight]} numberOfLines={1} {...fitText}>
           {first}
         </Text>
         {rest ? (
-          <Text style={[styles.last, dim && styles.dimText, right && styles.textRight]} numberOfLines={1}>
+          <Text style={[styles.last, dim && styles.dimText, right && styles.textRight]} numberOfLines={1} {...fitText}>
             {rest}
           </Text>
         ) : null}
@@ -101,17 +115,129 @@ function Side({ id, name, win, dim, right }: { id: string; name: string; win: bo
   );
 }
 
+type Cell = 'won' | 'took' | 'lost' | 'none';
+
+/**
+ * Ход боя — как на сайте: по ячейке на каждый раунд формата (Bo7 — семь).
+ * Раунд победителя боя — зелёный, раунд, взятый проигравшим, — серый, проигранный — рамка,
+ * несыгранный — пунктир. Между дорожками — счёт после раунда: белый — ведёт будущий
+ * победитель, янтарный — ведёт проигравший, серый — ничья.
+ */
+function Track({ f }: { f: CompetitionFight }) {
+  const slots = Math.max(Number(f.bestOf) || 0, f.rounds.length);
+  const winner = f.winner === f.wrestler1Name ? 1 : 2;
+  const lane = (side: 1 | 2): Cell[] => {
+    const me = side === 1 ? f.wrestler1Name : f.wrestler2Name;
+    return Array.from({ length: slots }, (_, i) => {
+      const r = f.rounds[i];
+      if (!r) return 'none';
+      if (r.winnerName !== me) return 'lost';
+      return side === winner ? 'won' : 'took';
+    });
+  };
+  let s1 = 0;
+  let s2 = 0;
+  const scores = Array.from({ length: slots }, (_, i) => {
+    const r = f.rounds[i];
+    if (!r) return null;
+    if (r.winnerName === f.wrestler1Name) s1++;
+    else if (r.winnerName === f.wrestler2Name) s2++;
+    const lead = s1 === s2 ? 0 : s1 > s2 ? 1 : 2;
+    return { text: `${s1}:${s2}`, color: lead === 0 ? fc.muted : lead === winner ? colors.text : AMBER };
+  });
+  // Колонка имён растёт со шрифтом, но не съедает ячейки раундов.
+  const { fontScale } = useWindowDimensions();
+  const nameCol = { width: 64 * columnScale(fontScale) };
+  const name = (side: 1 | 2) => {
+    const full = side === 1 ? f.wrestler1Name : f.wrestler2Name;
+    return split(full)[1] || full;
+  };
+
+  const laneRow = (side: 1 | 2) => (
+    <View style={styles.trackRow}>
+      <Text
+        style={[styles.trackName, nameCol, side === winner && styles.trackNameOn]}
+        numberOfLines={1}
+        maxFontSizeMultiplier={SMALL_TEXT_SCALE}
+        {...fitText}>
+        {name(side)}
+      </Text>
+      <View style={styles.cells}>
+        {lane(side).map((c, i) => (
+          <View key={i} style={[styles.cell, CELL[c]]} />
+        ))}
+      </View>
+    </View>
+  );
+
+  return (
+    <View style={styles.track}>
+      {laneRow(1)}
+      <View style={styles.trackRow}>
+        <Text style={[styles.trackName, nameCol]} />
+        <View style={styles.cells}>
+          {scores.map((s, i) => (
+            <Text
+              key={i}
+              style={[styles.trackScore, { color: s ? s.color : fc.borderStrong }]}
+              numberOfLines={1}
+              maxFontSizeMultiplier={SMALL_TEXT_SCALE}
+              {...fitText}>
+              {s ? s.text : '·'}
+            </Text>
+          ))}
+        </View>
+      </View>
+      {laneRow(2)}
+    </View>
+  );
+}
+
+const CELL = StyleSheet.create({
+  won: { backgroundColor: GREEN },
+  took: { backgroundColor: fc.second },
+  lost: { borderWidth: 1, borderColor: fc.borderStrong },
+  none: { borderWidth: 1, borderColor: fc.border, borderStyle: 'dashed' },
+});
+
+/**
+ * «Итог против прогноза»: угадала ли M.I.R.A. победителя, плюс «в сухую».
+ * Прогноз грузится только при раскрытии карточки.
+ */
+function Verdict({ f }: { f: CompetitionFight }) {
+  const load = useCallback(() => loadMira(f.fightId), [f.fightId]);
+  const { data: mira } = useAsync(load);
+  const shutout = f.w1Score === 0 || f.w2Score === 0;
+  const pick = !mira || mira.w1Pct === mira.w2Pct ? null : mira.w1Pct > mira.w2Pct ? f.wrestler1Name : f.wrestler2Name;
+  if (!pick && !shutout) return null;
+  const hit = pick === f.winner;
+  return (
+    <View style={styles.verdict}>
+      {pick ? (
+        <View style={styles.verdictItem}>
+          <View style={[styles.verdictIcon, { backgroundColor: hit ? 'rgba(74,200,124,0.16)' : 'rgba(200,74,74,0.16)' }]}>
+            <Text style={[styles.verdictMark, { color: hit ? GREEN : RED }]}>{hit ? '✓' : '✕'}</Text>
+          </View>
+          <Text style={styles.verdictText}>{hit ? 'M.I.R.A. угадала' : 'M.I.R.A. ошиблась'}</Text>
+        </View>
+      ) : null}
+      {shutout ? <Text style={styles.shutout}>В сухую</Text> : null}
+    </View>
+  );
+}
+
 function Rounds({ f }: { f: CompetitionFight }) {
   return (
     <View style={styles.rounds}>
       {f.rounds.map((r, i) => {
-        const isW1 = r.winnerName === f.wrestler1Name;
+        // Цвет — как в ходе боя: раунды победителя боя зелёные, проигравшего — янтарные.
+        const byWinner = r.winnerName === f.winner;
         return (
           <View key={r.roundNumber} style={[styles.round, i % 2 === 1 && styles.roundAlt]}>
             <Text style={styles.roundN}>R{r.roundNumber}</Text>
             <View style={styles.flex}>
               <View style={styles.roundTop}>
-                <Text style={[styles.roundWinner, { color: isW1 ? GREEN : '#E8B931' }]} numberOfLines={1}>
+                <Text style={[styles.roundWinner, { color: byWinner ? GREEN : AMBER }]} numberOfLines={1} {...fitText}>
                   {r.winnerName ?? '—'}
                 </Text>
                 {r.styleUsed ? <Text style={styles.roundStyle}>{r.styleUsed}</Text> : null}
@@ -150,13 +276,15 @@ function Prediction({ f }: { f: CompetitionFight }) {
             const lead = pct >= 50;
             return (
               <View key={name} style={styles.probRow}>
-                <Text style={styles.probName} numberOfLines={1}>
+                <Text style={styles.probName} numberOfLines={1} {...fitText}>
                   {name}
                 </Text>
                 <View style={styles.probTrack}>
                   <View style={[styles.probFill, { width: `${pct}%`, backgroundColor: lead ? colors.text : '#5A5B61' }]} />
                 </View>
-                <Text style={[styles.probPct, !lead && { color: fc.dim }]}>{pct}%</Text>
+                <Text style={[styles.probPct, !lead && { color: fc.dim }]} maxFontSizeMultiplier={SMALL_TEXT_SCALE}>
+                  {pct}%
+                </Text>
               </View>
             );
           })}
@@ -175,7 +303,7 @@ function Prediction({ f }: { f: CompetitionFight }) {
               ] as const
             ).map(([name, v, fav], i) => (
               <View key={i} style={[styles.oddsPill, i === 1 && styles.oddsPillRight]}>
-                <Text style={styles.oddsName} numberOfLines={1}>
+                <Text style={styles.oddsName} numberOfLines={1} {...fitText}>
                   {split(name)[1] || name}
                 </Text>
                 <Text style={[styles.oddsValue, !fav && { color: fc.muted }]}>{formatOdds(v)}</Text>
@@ -234,10 +362,40 @@ const styles = StyleSheet.create({
   dash: { color: fc.dim },
   vs: { fontFamily: fonts.display, fontSize: 18, color: colors.accent },
   meta: { fontFamily: fonts.bodyMedium, fontSize: 10, color: fc.muted, marginTop: 2 },
+  track: { marginTop: 12, gap: 4 },
+  trackRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  trackName: {
+    textAlign: 'right',
+    fontFamily: fonts.bodySemi,
+    fontSize: 10,
+    color: fc.dim,
+  },
+  trackNameOn: { color: colors.text },
+  cells: { flex: 1, flexDirection: 'row', gap: 4 },
+  cell: { flex: 1, height: 12, borderRadius: 2 },
+  trackScore: { flex: 1, textAlign: 'center', fontFamily: fonts.display, fontSize: 12, lineHeight: 14 },
+  verdict: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 10, paddingHorizontal: 14, paddingBottom: 10 },
+  verdictItem: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  verdictIcon: { width: 20, height: 20, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
+  verdictMark: { fontSize: 11, fontFamily: fonts.bodySemi },
+  verdictText: { fontFamily: fonts.bodyMedium, fontSize: 13, color: fc.soft },
+  shutout: {
+    fontFamily: fonts.bodySemi,
+    fontSize: 10,
+    letterSpacing: 1,
+    textTransform: 'uppercase',
+    color: GREEN,
+    borderWidth: 1,
+    borderColor: GREEN,
+    borderRadius: 2,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+  },
   chevron: { alignSelf: 'center', marginTop: 6 },
   chevronOpen: { transform: [{ rotate: '180deg' }] },
   body: { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: fc.line },
-  actions: { flexDirection: 'row', alignItems: 'center', gap: 10, padding: 12 },
+  // Не помещается рядом с кнопкой (узкий экран, крупный шрифт) — плашка победителя уходит на строку ниже.
+  actions: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 10, padding: 12 },
   btn: {
     height: 38,
     paddingHorizontal: 16,
@@ -248,7 +406,8 @@ const styles = StyleSheet.create({
   btnText: { fontFamily: fonts.bodySemi, fontSize: 13, color: colors.lightText },
   pressed: { opacity: 0.8 },
   winner: {
-    flex: 1,
+    flexGrow: 1,
+    flexBasis: 150,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
@@ -274,10 +433,11 @@ const styles = StyleSheet.create({
   prob: { padding: 14, paddingTop: 2, gap: 8 },
   probLabel: { fontFamily: fonts.bodySemi, fontSize: 10, letterSpacing: 1, textTransform: 'uppercase', color: fc.dim },
   probRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  probName: { width: 112, fontFamily: fonts.bodyMedium, fontSize: 12, color: fc.soft },
+  // Доля строки, а не точки: на узком экране полоске шанса тоже нужно место.
+  probName: { width: '34%', fontFamily: fonts.bodyMedium, fontSize: 12, color: fc.soft },
   probTrack: { flex: 1, height: 8, borderRadius: 4, backgroundColor: fc.track, overflow: 'hidden' },
   probFill: { height: '100%', borderRadius: 4 },
-  probPct: { width: 38, textAlign: 'right', fontFamily: fonts.display, fontSize: 15, color: colors.text },
+  probPct: { minWidth: 38, textAlign: 'right', fontFamily: fonts.display, fontSize: 15, color: colors.text },
   oddsLabel: { marginTop: 6 },
   oddsRow: { flexDirection: 'row', gap: 8 },
   oddsPill: {

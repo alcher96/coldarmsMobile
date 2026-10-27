@@ -10,7 +10,6 @@ import { ScreenTitle } from '@/components/screen-title';
 import { SearchField } from '@/components/search-field';
 import { Segmented } from '@/components/segmented';
 import { ArchiveCard } from '@/components/tournaments/archive-card';
-import { MiraCard } from '@/components/tournaments/mira-card';
 import { UpcomingCard } from '@/components/tournaments/upcoming-card';
 import { Card, Title } from '@/components/ui';
 import { useAsync } from '@/hooks/use-async';
@@ -69,8 +68,6 @@ export default function TournamentsScreen() {
                 <Text style={styles.empty}>Ближайших турниров пока нет</Text>
               </Card>
             )}
-
-            <MiraCard />
 
             <View style={styles.archiveHead}>
               <Title style={styles.archiveTitle}>Архив турниров</Title>

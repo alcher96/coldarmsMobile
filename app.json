@@ -19,7 +19,20 @@
         "monochromeImage": "./assets/images/android-icon-monochrome.png"
       },
       "predictiveBackGestureEnabled": false,
-      "package": "com.coldarms.app"
+      "package": "com.coldarms.app",
+      "intentFilters": [
+        {
+          "action": "VIEW",
+          "autoVerify": true,
+          "data": [
+            { "scheme": "https", "host": "coldarms.com", "pathPrefix": "/verify-email" },
+            { "scheme": "https", "host": "coldarms.com", "pathPrefix": "/reset-password" },
+            { "scheme": "https", "host": "coldarms.com", "pathPrefix": "/en/verify-email" },
+            { "scheme": "https", "host": "coldarms.com", "pathPrefix": "/en/reset-password" }
+          ],
+          "category": ["BROWSABLE", "DEFAULT"]
+        }
+      ]
     },
     "web": {
       "output": "static",

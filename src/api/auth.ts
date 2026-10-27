@@ -66,6 +66,63 @@ export async function forgotPassword(email: string) {
   if (!r.ok) throw failure(r.status, r.data, 'Не удалось отправить письмо. Попробуйте позже');
 }
 
+/**
+ * Вход через Telegram — как кнопка на сайте: сервер выдаёт ссылку на бота и одноразовый токен,
+ * человек подтверждает вход в боте, а мы раз в 2 секунды спрашиваем, подтвердил ли он.
+ */
+export async function startTelegramLogin(): Promise<{ deepLink: string; token: string }> {
+  await clearTokens();
+  const r = await call<{ deepLink?: string; token?: string }>('/auth/telegram/start', undefined);
+  if (!r.ok || !r.data?.deepLink || !r.data.token) {
+    throw failure(r.status, r.data, 'Не удалось начать вход через Telegram. Попробуйте позже');
+  }
+  return { deepLink: r.data.deepLink, token: r.data.token };
+}
+
+/** Один опрос: `ok` — вход подтверждён (сессия уже выдана), `pending` — ждём, `expired` — токен истёк. */
+export async function pollTelegramLogin(token: string): Promise<'ok' | 'pending' | 'expired'> {
+  const r = await apiFetch(`/auth/telegram/poll?token=${encodeURIComponent(token)}`, undefined, { retry: false });
+  const data = r.ok ? parseApiJson(await r.text()) : null;
+  const status = data && typeof data === 'object' && 'status' in data ? data.status : null;
+  if (status === 'ok') {
+    // Сессия приходит куками (как на сайте); если сервер положил токены и в тело — сохраним их.
+    await saveTokensFrom(data);
+    // Пароля нет — тихий повторный вход по почте здесь невозможен, старые данные не нужны.
+    await clearCredentials();
+    return 'ok';
+  }
+  return status === 'expired' ? 'expired' : 'pending';
+}
+
+/** Статус ссылки из письма — как отвечает API на /auth/verify-email и /auth/reset-password/*. */
+export type LinkStatus = 'ok' | 'already' | 'expired' | 'invalid';
+
+const statusOf = (data: unknown): LinkStatus => {
+  const s = data && typeof data === 'object' && 'status' in data ? data.status : null;
+  return s === 'ok' || s === 'already' || s === 'expired' ? s : 'invalid';
+};
+
+/** Подтверждение почты по токену из письма (страница /verify-email сайта). */
+export async function verifyEmail(token: string): Promise<LinkStatus> {
+  const r = await call('/auth/verify-email', { token });
+  return statusOf(r.data);
+}
+
+/** Жив ли токен сброса пароля — проверяем до показа формы, как сайт. */
+export async function validateResetToken(token: string): Promise<LinkStatus> {
+  const r = await call('/auth/reset-password/validate', { token });
+  return statusOf(r.data);
+}
+
+/** Новый пароль по токену из письма; `ok` — пароль сменён. */
+export async function resetPassword(token: string, newPassword: string): Promise<LinkStatus> {
+  const r = await call('/auth/reset-password', { token, newPassword });
+  if (r.ok) return 'ok';
+  const raw = r.data && typeof r.data === 'object' && 'status' in r.data ? r.data.status : null;
+  if (raw === 'expired' || raw === 'invalid') return raw;
+  throw failure(r.status, r.data, 'Не удалось сохранить пароль, попробуйте ещё раз');
+}
+
 /** Текущий пользователь по claims из /auth/me; null — сессии нет. */
 export async function fetchMe(): Promise<User | null> {
   const r = await apiFetch('/auth/me');

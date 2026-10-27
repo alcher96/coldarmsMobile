@@ -1,6 +1,7 @@
 import type { Competition, Fight } from './competitions';
 import type { Round } from './fight';
 import { apiFetch, apiGet, SITE_URL } from './http';
+import type { FightOdds } from './odds';
 
 /**
  * Страница соревнования — те же запросы, что у /competition/{slug}/{id} сайта
@@ -69,3 +70,72 @@ export function countView(id: string) {
 }
 
 export const competitionVideoUrl = (id: string) => `${SITE_URL}/api/Competition/${id}/video/file?format=mp4`;
+
+/** Бой в разбивке шкалы неожиданности. */
+export type SurpriseFight = {
+  fightId: string;
+  title: string;
+  winner: string;
+  /** Доля боя в «запасе неожиданности» турнира; в сумме по турниру — 100. */
+  capacity: number;
+  /** Шанс победителя до боя по консенсусу букмекеров (без маржи), %. */
+  winnerPct: number;
+  /** Победил андердог — бой добавил неожиданности. */
+  upset: boolean;
+};
+
+export type Surprise = {
+  /** Сколько «запаса неожиданности» турнира реализовалось, %. */
+  value: number;
+  /** Ожидаемое значение при таких шансах, %. */
+  usual: number;
+  fights: SurpriseFight[];
+};
+
+/** Границы зон шкалы, как на сайте: обычно / выше / редко / исключение. */
+export const SURPRISE_ZONES = [
+  { from: 0, to: 25, label: 'обычно' },
+  { from: 25, to: 45, label: 'выше' },
+  { from: 45, to: 60, label: 'редко' },
+  { from: 60, to: 100, label: 'исключение' },
+] as const;
+
+const lastName = (name: string) => {
+  const i = name.indexOf(' ');
+  return i < 0 ? name : name.slice(i + 1);
+};
+
+/**
+ * Шкала неожиданности турнира — как на сайте у вошедшего пользователя.
+ * Шансы — консенсус букмекеров (/api/odds/competition/{id}, только для вошедших).
+ * Вес боя — |logit| шанса фаворита: чем увереннее рынок, тем громче апсет.
+ * Значение — доля веса боёв, где победил андердог; «обычный уровень» — её ожидание.
+ */
+export async function loadSurprise(competitionId: string, fights: CompetitionFight[]): Promise<Surprise | null> {
+  const done = fights.filter((f) => f.winner === f.wrestler1Name || f.winner === f.wrestler2Name);
+  const odds = await apiGet<Record<string, FightOdds>>(`/api/odds/competition/${competitionId}`);
+  const rows = done.flatMap((f) => {
+    const c = odds?.[f.fightId]?.consensus;
+    const pA = c?.sources ? c.probability1 : null;
+    if (pA == null || pA <= 0 || pA >= 1 || pA === 0.5) return [];
+    const pWin = f.winner === f.wrestler1Name ? pA : 1 - pA;
+    return [{ f, pWin, weight: Math.abs(Math.log(pA / (1 - pA))) }];
+  });
+  const total = rows.reduce((s, r) => s + r.weight, 0);
+  if (!total) return null;
+  const list: SurpriseFight[] = rows.map(({ f, pWin, weight }) => ({
+    fightId: f.fightId,
+    title: `${lastName(f.wrestler1Name)} / ${lastName(f.wrestler2Name)}`,
+    winner: lastName(f.winner!),
+    capacity: (weight / total) * 100,
+    winnerPct: pWin * 100,
+    upset: pWin < 0.5,
+  }));
+  // Сначала бои, давшие неожиданность, потом остальные; внутри — по весу.
+  list.sort((a, b) => Number(b.upset) - Number(a.upset) || b.capacity - a.capacity);
+  return {
+    value: list.reduce((s, r) => s + (r.upset ? r.capacity : 0), 0),
+    usual: rows.reduce((s, r) => s + r.weight * Math.min(r.pWin, 1 - r.pWin), 0) / total * 100,
+    fights: list,
+  };
+}

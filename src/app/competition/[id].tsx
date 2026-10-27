@@ -20,6 +20,7 @@ import {
 } from "@/api/competition";
 import { coverUrl, isUpcoming } from "@/api/competitions";
 import { CompetitionFightCard } from "@/components/competition/fight-card";
+import { SurpriseScale } from "@/components/competition/surprise";
 import { fc } from "@/components/fight/palette";
 import { SearchField } from "@/components/search-field";
 import { Segmented } from "@/components/segmented";
@@ -232,6 +233,7 @@ function Hero({ page }: { page: CompetitionPage }) {
           ))}
         </View>
       ) : null}
+      {upcoming ? null : <SurpriseScale competitionId={c.competitionId} fights={page.fights} />}
       {page.hasVideo ? (
         <Pressable
           onPress={() =>
