@@ -2,7 +2,16 @@ import { Image } from 'expo-image';
 import { router } from 'expo-router';
 import { ChevronLeft, Search, Trophy, X } from 'lucide-react-native';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import {
+  ActivityIndicator,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
+  type TextInputInstance,
+} from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { coverUrl } from '@/api/competitions';
@@ -21,7 +30,7 @@ export default function SearchScreen() {
   const myId = useAsync(loadMyId).data ?? null;
   const [query, setQuery] = useState('');
   const [term, setTerm] = useState('');
-  const input = useRef<TextInput>(null);
+  const input = useRef<TextInputInstance>(null);
 
   // Ищем, когда пользователь перестал печатать; одна буква — слишком широко, ждём вторую.
   useEffect(() => {

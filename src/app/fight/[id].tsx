@@ -11,6 +11,7 @@ import {
   View,
   useWindowDimensions,
   type NativeScrollEvent,
+  type ScrollViewInstance,
   type NativeSyntheticEvent,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -90,7 +91,7 @@ function Fight({ data }: { data: FightPage }) {
   const [info, setInfo] = useState<Info | null>(null);
   const [fighter, setFighter] = useState<1 | 2 | null>(null);
   const [collapsed, setCollapsed] = useState(false);
-  const scroll = useRef<ScrollView>(null);
+  const scroll = useRef<ScrollViewInstance>(null);
   // Вкладка не короче экрана: при переключении на короткую вкладки остаются прилипшими сверху.
   const minContent = useWindowDimensions().height - 52 - 46;
   const heroHeight = useRef(0);

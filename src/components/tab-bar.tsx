@@ -13,7 +13,7 @@ const TABS: Record<string, { label: string; Icon: LucideIcon }> = {
 };
 
 /** Таб-бар по макету: активная вкладка белая с красной полоской снизу. */
-export function TabBar({ state, navigation, insets }: BottomTabBarProps) {
+export function TabBar({ state, emitter, navigateToTab, insets }: BottomTabBarProps) {
   return (
     <View style={[styles.bar, { paddingBottom: Math.max(insets.bottom, 8) }]}>
       {state.routes.map((route, index) => {
@@ -22,8 +22,8 @@ export function TabBar({ state, navigation, insets }: BottomTabBarProps) {
         const focused = state.index === index;
         const color = focused ? colors.text : colors.textDim;
         const onPress = () => {
-          const event = navigation.emit({ type: 'tabPress', target: route.key, canPreventDefault: true });
-          if (!focused && !event.defaultPrevented) navigation.navigate(route.name, route.params);
+          const event = emitter.emit({ type: 'tabPress', target: route.key, canPreventDefault: true });
+          if (!focused && !event.defaultPrevented) navigateToTab(route.key);
         };
         return (
           <Pressable

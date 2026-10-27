@@ -69,7 +69,7 @@ export default function ArchiveScreen() {
         ListEmptyComponent={
           !loading && !error ? (
             <Text style={styles.muted}>{search ? 'Ничего не найдено' : 'Прошедших турниров нет'}</Text>
-          ) : null
+          ) : undefined
         }
         keyboardShouldPersistTaps="handled"
         keyboardDismissMode="on-drag"

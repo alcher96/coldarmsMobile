@@ -147,7 +147,7 @@ export default function AthletesScreen() {
               <Text style={styles.emptyTitle}>Никого не нашли</Text>
               <Text style={styles.muted}>Попробуйте изменить фильтры или поиск</Text>
             </View>
-          ) : null
+          ) : undefined
         }
         ListFooterComponent={
           <View style={styles.footer}>
