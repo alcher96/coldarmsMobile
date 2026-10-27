@@ -55,7 +55,8 @@ function RootNavigator() {
 
   return (
     <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.bg } }}>
-      <Stack.Protected guard={status === 'signedIn'}>
+      {/* Без redirectTo закрытый экран на старте (свежая установка, сессии нет) — «Unmatched Route». */}
+      <Stack.Protected guard={status === 'signedIn'} redirectTo="/login">
         <Stack.Screen name="(tabs)" />
         <Stack.Screen name="fight/[id]" />
         <Stack.Screen name="athlete/[id]" />
@@ -64,7 +65,7 @@ function RootNavigator() {
         <Stack.Screen name="search" options={{ animation: 'fade' }} />
         <Stack.Screen name="user/[id]" />
       </Stack.Protected>
-      <Stack.Protected guard={status === 'signedOut'}>
+      <Stack.Protected guard={status === 'signedOut'} redirectTo="/">
         <Stack.Screen name="(auth)" />
       </Stack.Protected>
     </Stack>
