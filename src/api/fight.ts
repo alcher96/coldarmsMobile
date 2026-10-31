@@ -238,6 +238,26 @@ export async function loadMira(fightId: string): Promise<Mira | null> {
   };
 }
 
+const miraCache = new Map<string, Promise<Mira | null>>();
+
+/**
+ * Прогноз для карточек турнира: свернул и раскрыл — повторно не запрашиваем.
+ * Пустой ответ не запоминаем, прогноз мог ещё не успеть посчитаться.
+ */
+export function loadMiraCached(fightId: string): Promise<Mira | null> {
+  let mira = miraCache.get(fightId);
+  if (!mira) {
+    mira = loadMira(fightId);
+    miraCache.set(fightId, mira);
+    mira.then((m) => {
+      if (!m) miraCache.delete(fightId);
+    });
+  }
+  return mira;
+}
+
+export const clearMiraCache = () => miraCache.clear();
+
 const statsUrl = (id: string, asOf?: string) => `/api/ArmWrestler/${id}/stats${asOf ? `?asOf=${asOf}` : ''}`;
 
 export async function loadFightPage(fightId: string): Promise<FightPage> {

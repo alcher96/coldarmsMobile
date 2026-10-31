@@ -1,7 +1,7 @@
 import { useCallback, useState } from 'react';
 import { Pressable, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 
-import { loadSurprise, SURPRISE_ZONES, type CompetitionFight, type Surprise } from '@/api/competition';
+import { loadSurprise, SURPRISE_ZONES, type Surprise } from '@/api/competition';
 import { Sheet, SheetScrollView } from '@/components/fight/info-sheet';
 import { fc } from '@/components/fight/palette';
 import { useAsync } from '@/hooks/use-async';
@@ -17,12 +17,12 @@ const fixed1 = (n: number) => n.toFixed(1).replace('.', ',');
  * Шкала неожиданности турнира — как на сайте у вошедшего пользователя:
  * штырь на шкале из четырёх зон, по тапу — разбивка по боям.
  */
-export function SurpriseScale({ competitionId, fights }: { competitionId: string; fights: CompetitionFight[] }) {
-  const load = useCallback(() => loadSurprise(competitionId, fights), [competitionId, fights]);
+export function SurpriseScale({ competitionId }: { competitionId: string }) {
+  const load = useCallback(() => loadSurprise(competitionId), [competitionId]);
   const { data } = useAsync(load);
   const [open, setOpen] = useState(false);
   if (!data) return null;
-  const value = Math.min(100, Math.max(0, data.value));
+  const value = Math.min(100, Math.max(0, data.percent));
   const zone = SURPRISE_ZONES.findIndex((z) => value < z.to || z.to === 100);
 
   return (
@@ -88,7 +88,7 @@ function Breakdown({ data }: { data: Surprise }) {
       <View style={styles.sheetHead}>
         <Text style={styles.sheetTitle}>Неожиданность турнира</Text>
         <Text style={styles.sheetSub}>
-          {Math.round(data.value)}% при обычном уровне {Math.round(data.usual)}%.
+          {Math.round(data.percent)}% при обычном уровне {Math.round(data.expectedPercent)}%.
         </Text>
       </View>
       <View style={[styles.tr, styles.th]}>
@@ -105,22 +105,22 @@ function Breakdown({ data }: { data: Surprise }) {
         ))}
       </View>
       <SheetScrollView style={styles.flexShrink} contentContainerStyle={styles.tbody}>
-        {data.fights.map((f) => {
+        {data.perFight.map((f, i) => {
           // Бои без вклада приглушены: неожиданности в них не было.
           const dim = !f.upset && styles.dim;
           return (
-            <View key={f.fightId} style={styles.tr}>
+            <View key={i} style={styles.tr}>
               <Text style={[styles.td, styles.cFight, dim]} numberOfLines={2} {...fitText}>
-                {f.title.replace(' / ', ' /\n')}
+                {f.pair.replace(' / ', ' /\n')}
               </Text>
               <Text style={[styles.tdValue, styles.num, cCap, dim]} maxFontSizeMultiplier={SMALL_TEXT_SCALE}>
-                {fixed1(f.capacity)}
+                {fixed1(f.ceiling)}
               </Text>
               <Text style={[styles.td, styles.cWin, dim]} numberOfLines={1} {...fitText}>
                 {f.winner}
               </Text>
               <Text style={[styles.td, styles.num, cPct, dim]} maxFontSizeMultiplier={SMALL_TEXT_SCALE}>
-                {fixed1(f.winnerPct)}%
+                {fixed1(f.winnerProbability)}%
               </Text>
             </View>
           );

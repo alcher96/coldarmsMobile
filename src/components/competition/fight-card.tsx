@@ -4,8 +4,8 @@ import { useCallback, useState } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 
 import type { CompetitionFight } from '@/api/competition';
-import { loadMira } from '@/api/fight';
-import { averageOdds, formatOdds, loadFightOdds } from '@/api/odds';
+import { loadMiraCached } from '@/api/fight';
+import { averageOdds, formatOdds, type FightOdds } from '@/api/odds';
 import { FighterAvatar } from '@/components/tournaments/fighter-avatar';
 import { fc } from '@/components/fight/palette';
 import { useAsync } from '@/hooks/use-async';
@@ -24,7 +24,15 @@ const split = (name: string) => {
 const handLabel = (h: string | null) => (h === 'Right' ? 'Правая' : h === 'Left' ? 'Левая' : '');
 
 /** Бой в карточке турнира: соперники и счёт; по тапу — раунды (если бой прошёл) или прогноз M.I.R.A. */
-export function CompetitionFightCard({ f, initiallyOpen }: { f: CompetitionFight; initiallyOpen?: boolean }) {
+export function CompetitionFightCard({
+  f,
+  odds,
+  initiallyOpen,
+}: {
+  f: CompetitionFight;
+  odds: FightOdds | null;
+  initiallyOpen?: boolean;
+}) {
   const [open, setOpen] = useState(!!initiallyOpen);
   const done = !!f.winner;
   const w1 = done && f.winner === f.wrestler1Name;
@@ -83,7 +91,7 @@ export function CompetitionFightCard({ f, initiallyOpen }: { f: CompetitionFight
               <Rounds f={f} />
             </>
           ) : (
-            <Prediction f={f} />
+            <Prediction f={f} odds={odds} />
           )}
         </View>
       ) : null}
@@ -205,7 +213,7 @@ const CELL = StyleSheet.create({
  * Прогноз грузится только при раскрытии карточки.
  */
 function Verdict({ f }: { f: CompetitionFight }) {
-  const load = useCallback(() => loadMira(f.fightId), [f.fightId]);
+  const load = useCallback(() => loadMiraCached(f.fightId), [f.fightId]);
   const { data: mira } = useAsync(load);
   const shutout = f.w1Score === 0 || f.w2Score === 0;
   const pick = !mira || mira.w1Pct === mira.w2Pct ? null : mira.w1Pct > mira.w2Pct ? f.wrestler1Name : f.wrestler2Name;
@@ -251,15 +259,11 @@ function Rounds({ f }: { f: CompetitionFight }) {
   );
 }
 
-/** Прогноз M.I.R.A. и средний коэффициент букмекеров: грузятся, только когда карточку раскрыли. */
-function Prediction({ f }: { f: CompetitionFight }) {
-  const load = useCallback(
-    () => Promise.all([loadMira(f.fightId), loadFightOdds(f.fightId).catch(() => null)]),
-    [f.fightId],
-  );
-  const { data, loading } = useAsync(load);
-  if (loading && !data) return <ActivityIndicator color={colors.text} style={styles.loader} />;
-  const [mira, odds] = data ?? [null, null];
+/** Прогноз M.I.R.A. (грузится, только когда карточку раскрыли) и средний коэффициент букмекеров. */
+function Prediction({ f, odds }: { f: CompetitionFight; odds: FightOdds | null }) {
+  const load = useCallback(() => loadMiraCached(f.fightId), [f.fightId]);
+  const { data: mira, loading } = useAsync(load);
+  if (loading && !mira) return <ActivityIndicator color={colors.text} style={styles.loader} />;
   const avg = averageOdds(odds);
   if (!mira && !avg) return <Text style={styles.empty}>Прогноз пока не готов</Text>;
   return (

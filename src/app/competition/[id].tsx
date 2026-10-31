@@ -19,6 +19,7 @@ import {
   type CompetitionPage,
 } from "@/api/competition";
 import { coverUrl, isUpcoming } from "@/api/competitions";
+import { clearMiraCache } from "@/api/fight";
 import { CompetitionFightCard } from "@/components/competition/fight-card";
 import { SurpriseScale } from "@/components/competition/surprise";
 import { fc } from "@/components/fight/palette";
@@ -45,7 +46,10 @@ const HANDS: { key: HandFilter; label: string }[] = [
 /** Страница турнира: шапка с обложкой, сводка и все бои с раундами или прогнозом — как на сайте. */
 export default function CompetitionScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
-  const load = useCallback(() => loadCompetitionPage(id), [id]);
+  const load = useCallback(() => {
+    clearMiraCache();
+    return loadCompetitionPage(id);
+  }, [id]);
   const { data, error, loading, refresh } = useAsync(load);
 
   // Просмотр засчитываем один раз на открытие экрана.
@@ -126,6 +130,7 @@ function Content({
       renderItem={({ item, index }) => (
         <CompetitionFightCard
           f={item}
+          odds={page.odds?.[item.fightId] ?? null}
           initiallyOpen={index === 0 && !q && hand === "all"}
         />
       )}
@@ -233,7 +238,7 @@ function Hero({ page }: { page: CompetitionPage }) {
           ))}
         </View>
       ) : null}
-      {upcoming ? null : <SurpriseScale competitionId={c.competitionId} fights={page.fights} />}
+      {upcoming ? null : <SurpriseScale competitionId={c.competitionId} />}
       {page.hasVideo ? (
         <Pressable
           onPress={() =>
