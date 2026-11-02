@@ -4,6 +4,9 @@ export const SITE_URL = 'https://coldarms.com';
 
 const TIMEOUT_MS = 10_000;
 
+/** Из .env.local (EXPO_PUBLIC_CA_CLIENT_KEY); для сборок EAS — из переменных окружения EAS. */
+const CLIENT_KEY = process.env.EXPO_PUBLIC_CA_CLIENT_KEY;
+
 export class ApiError extends Error {
   constructor(
     readonly status: number,
@@ -44,6 +47,9 @@ async function rawFetch(path: string, init: RequestInit = {}): Promise<Response>
   if (!headers.has('accept')) headers.set('accept', 'application/json');
   const token = getAccessToken();
   if (token && !headers.has('authorization')) headers.set('authorization', `Bearer ${token}`);
+  // Ключ приложения: без него сайт снаружи отдаёт 404 на всё API, кроме нужного браузеру.
+  // ⚠️ Временный — перед публикацией в стор заменить на токен установки (см. TODO.md).
+  if (CLIENT_KEY && !headers.has('x-ca-client')) headers.set('x-ca-client', CLIENT_KEY);
   try {
     // credentials: 'include' — куки сессии из нативного cookie-jar уходят вместе с запросом.
     return await fetch(SITE_URL + path, { ...init, headers, credentials: 'include', signal: controller.signal });
