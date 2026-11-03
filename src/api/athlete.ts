@@ -51,8 +51,13 @@ export type AthleteStats = WrestlerStats & {
     | null;
 };
 
+export type SocialKind = 'youtube' | 'tiktok' | 'telegram' | 'instagram';
+export type SocialLink = { kind: SocialKind; label: string; url: string };
+
 export type AthletePage = {
   athlete: Athlete;
+  /** Соцсети в порядке сайта: YouTube, TikTok, Telegram, затем Instagram. */
+  socials: SocialLink[];
   stats: AthleteStats | null;
   styles: StyleUsage[];
   hasVideo: boolean;
@@ -62,16 +67,27 @@ export type AthletePage = {
 const safe = <T,>(p: Promise<T>) => p.catch(() => null);
 
 export async function loadAthletePage(id: string): Promise<AthletePage> {
-  const [athlete, stats, styles, video, fav] = await Promise.all([
+  const [athlete, stats, styles, video, fav, instagram] = await Promise.all([
     apiGet<Athlete>(`/api/ArmWrestler/${id}`),
     safe(apiGet<AthleteStats>(`/api/ArmWrestler/${id}/stats`)),
     safe(apiGet<{ styles: StyleUsage[] }>(`/api/ArmWrestler/style-statistics/${id}`)),
     safe(apiGet<{ hasMp4: boolean }>(`/api/ArmWrestler/${id}/video`)),
     safe(apiGet<{ isFavorite: boolean }>(`/profile/favorites/${id}`)),
+    // Instagram сайт показывает только вошедшим — отдельным запросом, как скрипт на странице атлета.
+    safe(apiGet<{ url?: string | null }>(`/api/ArmWrestler/${id}/instagram`)),
   ]);
   if (!athlete) throw new Error('Атлет не найден');
+  const socials = (
+    [
+      ['youtube', 'YouTube', athlete.youtubeUrl],
+      ['tiktok', 'TikTok', athlete.tiktokUrl],
+      ['telegram', 'Telegram', athlete.telegramUrl],
+      ['instagram', 'Insta', instagram?.url],
+    ] as const
+  ).flatMap(([kind, label, url]) => (url?.trim() ? [{ kind, label, url: url.trim() }] : []));
   return {
     athlete,
+    socials,
     stats,
     styles: (styles?.styles ?? []).filter((s) => s.usageCount > 0).sort((a, b) => b.usageCount - a.usageCount),
     hasVideo: !!video?.hasMp4,

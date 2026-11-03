@@ -23,6 +23,7 @@ import { ageOf, wrestlerPhotoUrl, type Hand } from '@/api/fight';
 import { AthleteAnalytics, type AnalyticsCat } from '@/components/athlete/analytics';
 import { AthleteFights } from '@/components/athlete/fights';
 import { AthleteOverview } from '@/components/athlete/overview';
+import { AthleteSocials } from '@/components/athlete/socials';
 import { IntroLoop } from '@/components/intro-loop';
 import { fc } from '@/components/fight/palette';
 import { useAsync } from '@/hooks/use-async';
@@ -244,6 +245,7 @@ function Hero({ page }: { page: AthletePage }) {
             {meta ? <Text style={styles.meta}>{meta}</Text> : null}
             {isElite(a) ? <Text style={styles.elite}>Elite</Text> : null}
           </View>
+          <AthleteSocials links={page.socials} />
         </View>
       </View>
 

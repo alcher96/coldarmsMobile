@@ -13,6 +13,10 @@ export type Athlete = Wrestler & {
   rArmLosses: number;
   lArmWins: number;
   lArmLosses: number;
+  /** Соцсети атлета; Instagram отдельно — только вошедшим (см. loadAthletePage). */
+  youtubeUrl?: string | null;
+  tiktokUrl?: string | null;
+  telegramUrl?: string | null;
 };
 
 export type AthleteSort = 'winRate' | 'name';
