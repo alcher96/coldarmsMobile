@@ -64,6 +64,7 @@ function RootNavigator() {
         <Stack.Screen name="notifications" />
         <Stack.Screen name="search" options={{ animation: 'fade' }} />
         <Stack.Screen name="user/[id]" />
+        <Stack.Screen name="analytics" />
       </Stack.Protected>
       <Stack.Protected guard={status === 'signedOut'} redirectTo="/">
         <Stack.Screen name="(auth)" />

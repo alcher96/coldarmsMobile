@@ -1,4 +1,5 @@
 import { router } from 'expo-router';
+import { useRef, useState } from 'react';
 import { ActivityIndicator, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -6,8 +7,8 @@ import { loadHome } from '@/api/home';
 import { AppHeader } from '@/components/app-header';
 import { AnalyzeCard } from '@/components/home/analyze-card';
 import { FocusCard } from '@/components/home/focus-card';
+import { InsightsCard } from '@/components/home/insights-card';
 import { NextTournament } from '@/components/home/next-tournament';
-import { RatingCard } from '@/components/home/rating-card';
 import { useAsync } from '@/hooks/use-async';
 import { colors, fonts, space, radii } from '@/theme/tokens';
 
@@ -15,13 +16,44 @@ const load = () => loadHome('ru');
 
 export default function HomeScreen() {
   const { data, error, loading, refreshing, refresh } = useAsync(load);
+  // Блок аналитики: данные грузятся, когда он подъехал к экрану (с запасом 200), — как ленивые
+  // вкладки на сайте; подсказка «ленту можно листать» — пока его нижняя часть с лентой на экране.
+  const [insightsActive, setInsightsActive] = useState(false);
+  const [insightsInView, setInsightsInView] = useState(false);
+  const [insightsKey, setInsightsKey] = useState(0);
+  const insightsBox = useRef<{ y: number; height: number } | null>(null);
+  const scrollY = useRef(0);
+  const viewHeight = useRef(0);
+  const track = () => {
+    const box = insightsBox.current;
+    if (!box || !viewHeight.current) return;
+    const top = scrollY.current;
+    const bottom = top + viewHeight.current;
+    if (!insightsActive && bottom + 200 >= box.y) setInsightsActive(true);
+    const end = box.y + box.height;
+    const inView = end <= bottom && end - 200 >= top;
+    if (inView !== insightsInView) setInsightsInView(inView);
+  };
+  const onRefresh = () => {
+    setInsightsKey((k) => k + 1);
+    refresh();
+  };
 
   return (
     <SafeAreaView style={styles.root} edges={['top']}>
       <AppHeader />
       <ScrollView
         contentContainerStyle={styles.content}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refresh} tintColor={colors.text} />}>
+        onLayout={(e) => {
+          viewHeight.current = e.nativeEvent.layout.height;
+          track();
+        }}
+        onScroll={(e) => {
+          scrollY.current = e.nativeEvent.contentOffset.y;
+          track();
+        }}
+        scrollEventThrottle={100}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.text} />}>
         {loading && <ActivityIndicator color={colors.text} style={styles.loader} />}
 
         {!data && error && (
@@ -35,7 +67,15 @@ export default function HomeScreen() {
 
         {data?.competition && <NextTournament competition={data.competition} mainFight={data.mainFight} />}
         {data && <AnalyzeCard onPress={() => router.navigate('/analysis')} />}
-        {data && <RatingCard entries={data.technicalRight} onAll={() => router.navigate('/athletes')} />}
+        {data && (
+          <View
+            onLayout={(e) => {
+              insightsBox.current = { y: e.nativeEvent.layout.y, height: e.nativeEvent.layout.height };
+              track();
+            }}>
+            <InsightsCard active={insightsActive} inView={insightsInView} refreshKey={insightsKey} />
+          </View>
+        )}
         {data?.news[0] && <FocusCard news={data.news[0]} />}
       </ScrollView>
     </SafeAreaView>

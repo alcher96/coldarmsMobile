@@ -39,3 +39,13 @@ Docs: https://docs.expo.dev/eas/index.md
 - If `ios/` and `android/` directories do not exist, they are generated (Continuous Native Generation). Never create or edit them by hand — configure native behavior in `app.json` and config plugins.
 - Expo Go only includes its bundled native modules. After adding a library with native code, the app needs a development build: `npx expo run:ios|android` locally, or `eas build --profile development`.
 - Prefer recommended Expo modules over third-party libraries, and check your available skills before adding dependencies. Docs: https://docs.expo.dev/versions/latest/index.md
+
+## Project notes (Cold Arms)
+
+- Backend is coldarms.com (production, read-only for us: GET probes only, never POST/state-changing requests without asking). API needs the client key header `x-ca-client` from `EXPO_PUBLIC_CA_CLIENT_KEY` (`.env.local` locally, EAS env for builds).
+- Never run local native builds (`expo run:*`, Gradle) — disk space. Test in Expo Go over adb, build in EAS cloud.
+- The user is always signed in: no login gates on content; show what the site hides from guests.
+- Android back: list screens undo search, then filters; detail screens leave the screen, never step through tabs.
+- Text must fit narrow screens and large system fonts: use `fitText` / `SMALL_TEXT_SCALE` / `columnScale` from `src/lib/text.ts`, check at 320dp and font 1.3 (`adb shell wm density 540`, `settings put system font_scale 1.3`, then reset).
+- Bottom sheets: `Sheet` / `SheetScrollView` in `src/components/fight/info-sheet.tsx` (swipe-down to close, lists keep scrolling).
+- Open work is tracked in `TODO.md`. UI copy is Russian.
