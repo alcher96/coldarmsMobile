@@ -8,6 +8,8 @@ import { refreshSession } from '@/api/http';
 import { analysisFetch, API_URL, authHeaders } from './api';
 import { schedule } from './schedule';
 import type { AnalysisResult, Answers, Quality } from './types';
+import { cleanVideoCache, isPreparedVideo, releasePreparedVideo } from '../../../modules/video-prep';
+import { isAbort, isNetworkError, UserError } from '@/lib/user-error';
 
 export type { Quality, QualityIssue } from './types';
 
@@ -62,23 +64,30 @@ const KEY = 'analysis.jobs.v1';
 export async function loadLocalJobs(): Promise<LocalJob[]> {
   try {
     const raw = await AsyncStorage.getItem(KEY);
-    return raw ? (JSON.parse(raw) as LocalJob[]) : [];
+    const list = raw ? (JSON.parse(raw) as LocalJob[]) : [];
+    // сжатую копию стёрли (разбор готов — уборка, или система почистила кэш) — ссылки на неё нет: видео с сервера
+    return list.map((j) => (j.uri && isPreparedVideo(j.uri) && !new File(j.uri).exists ? { ...j, uri: '' } : j));
   } catch {
     return [];
   }
 }
 
 export async function saveLocalJob(job: LocalJob) {
+  // сжатую копию уже стёрли (видео на сервере) — не возвращать ссылку на несуществующий файл
+  if (job.uri && isPreparedVideo(job.uri) && !new File(job.uri).exists) job = { ...job, uri: '' };
   const all = (await loadLocalJobs()).filter((j) => j.id !== job.id);
   await AsyncStorage.setItem(KEY, JSON.stringify([job, ...all].slice(0, 50))).catch(() => {});
 }
 
 export async function forgetLocalJob(id: string) {
-  const all = (await loadLocalJobs()).filter((j) => j.id !== id);
+  const list = await loadLocalJobs();
+  list.filter((j) => j.id === id && j.uri).forEach((j) => releasePreparedVideo(j.uri));
+  const all = list.filter((j) => j.id !== id);
   await AsyncStorage.setItem(KEY, JSON.stringify(all)).catch(() => {});
 }
 
-export class ApiError extends Error {
+/** Ошибка сервера анализа или наша проверка: текст — для человека (наш или из ответа сервера, без подробностей). */
+export class ApiError extends UserError {
   constructor(message: string, readonly status: number, readonly data: Record<string, unknown> = {}) {
     super(message);
   }
@@ -255,3 +264,47 @@ export const STAGE_RU: Record<string, string> = {
   center: 'Сверяю с ответами',
   quality: 'Проверяю качество видео',
 };
+
+/** Разбор закончен: готов, упал или отменён — сжатая копия видео на телефоне больше не нужна. */
+const FINISHED: JobState[] = ['done', 'failed', 'cancelled'];
+
+/**
+ * Уборка на телефоне. Сжатая копия видео живёт, пока разбор не закончен: вернулись проверить статус хоть 7 раз — видео
+ * на месте (вступление и скан — по нему), ничего не качаем. Закончен — копию стираем; кадры прерванных вступлений —
+ * всегда. server — свежий список разборов с сервера (состояние на телефоне могло устареть); нет связи — по телефону.
+ */
+export async function cleanupLocalVideos(server?: Job[]) {
+  const state = new Map((server ?? []).map((j) => [j.id, j.state] as const));
+  const keep = (await loadLocalJobs())
+    .filter((j) => j.uri && !FINISHED.includes(state.get(j.id) ?? j.state))
+    .map((j) => j.uri);
+  cleanVideoCache(keep);
+}
+
+/** Повторять, пока нет связи: запрос не дошёл до сервера — ждём и пробуем снова (2, 4, 8 … 15 с), пока экран открыт.
+ *  Загрузка продолжается с того места, где сервер остановился (upload спрашивает его об этом). onWait(true) — ждём
+ *  связь (показать «жду интернет»), onWait(false) — связь есть. Наши ошибки (UserError) и отмена — сразу наружу. */
+export async function retryWhileOffline<T>(
+  fn: () => Promise<T>, signal?: AbortSignal, onWait?: (waiting: boolean) => void,
+): Promise<T> {
+  let delay = 2000;
+  for (;;) {
+    try {
+      const r = await fn();
+      onWait?.(false);
+      return r;
+    } catch (e) {
+      if (signal?.aborted || isAbort(e) || !isNetworkError(e)) throw e;
+      onWait?.(true);
+      await new Promise<void>((res) => {
+        const t = setTimeout(res, delay);
+        signal?.addEventListener('abort', () => {
+          clearTimeout(t);
+          res();
+        }, { once: true });
+      });
+      if (signal?.aborted) throw e;
+      delay = Math.min(15000, delay * 2);
+    }
+  }
+}

@@ -11,6 +11,8 @@ android {
   defaultConfig {
     versionCode 1
     versionName "0.1.0"
+    // правила для релизной сборки приложения (R8): MediaPipe — без переименования (см. proguard-rules.pro)
+    consumerProguardFiles 'proguard-rules.pro'
   }
 }
 
@@ -21,4 +23,7 @@ dependencies {
   implementation "androidx.media3:media3-transformer:${media3}"
   implementation "androidx.media3:media3-effect:${media3}"
   implementation "androidx.media3:media3-common:${media3}"
+  // «скан» людей на замершем кадре вступления (PeopleScanner): детектор + Magic Touch v2 по штриху + запасной сегментатор
+  // людей. 1.2.0: в 0.10.35 старый Magic Touch на Android не учитывал отметку (одна маска на всех людей кадра)
+  implementation "com.google.mediapipe:tasks-vision:1.2.0"
 }

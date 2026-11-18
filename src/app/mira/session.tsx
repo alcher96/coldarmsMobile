@@ -3,7 +3,7 @@ import { useVideoPlayer, VideoView, type VideoPlayer } from 'expo-video';
 import { ChevronRight, Crosshair, RotateCcw } from 'lucide-react-native';
 import { useCallback, useEffect, useRef, useState, type ComponentRef } from 'react';
 import { Animated, Easing, Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
-import RAnimated, { LinearTransition } from 'react-native-reanimated';
+import RAnimated, { LinearTransition, useAnimatedRef, useSharedValue } from 'react-native-reanimated';
 
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -24,6 +24,7 @@ import {
   upload,
   type Job,
   type LocalJob,
+  retryWhileOffline,
 } from '@/features/analysis/jobs';
 import { type CyberState } from '@/features/analysis/components/cyber-eyes';
 import { MiraHud } from '@/features/analysis/components/mira-hud';
@@ -49,7 +50,15 @@ import {
 import type { AnalysisResult, Answers, KingsQuestion, Quality } from '@/features/analysis/types';
 import { TopUpSheet } from '@/features/tokens/top-up-sheet';
 import { VIDEO_FILL } from '@/features/analysis/video-size';
-import { canPrepareOnPhone, prepareVideo } from '../../../modules/video-prep';
+import {
+  canPrepareOnPhone, extractIntroFrames, prepareVideo, releaseIntroFrames, scanPeople, type IntroFrames, type ScannedPerson,
+} from '../../../modules/video-prep';
+import { ScanPeople } from '@/features/analysis/components/scan-people';
+import { AimReticle } from '@/features/analysis/components/aim-reticle';
+import { AIM_LEAD_S } from '@/features/analysis/components/scan-timing';
+import { deviceTier } from '@/features/analysis/components/device-tier';
+import { IntroBlend } from '@/features/analysis/components/intro-blend';
+import { UserError, userMessage } from '@/lib/user-error';
 
 // Демо: настоящего анализа загруженного видео пока нет — какое бы видео ни выбрали, показывается пример clip0
 // (вступление со слоу-мо, затем само видео), в конце открывается его готовый разбор. С карточки готового разбора
@@ -72,6 +81,21 @@ type Phase = 'upload' | 'chat' | 'analyze' | 'queued' | 'done';
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 const HUD_PAD = 16; // визор — как на экране расписания
+const FREEZE_ZOOM = 1.07; // «наезд» камеры на замерший кадр (скан и прицел идут уже по увеличенному кадру)
+
+/**
+ * Вступление и «скан» по классу телефона (эксперт, 2026-11-18). Дорогое — только поиск людей (MediaPipe: 4–4,5 с
+ * процессора на 8 человек на Galaxy S23 Ultra, ~50 МБ моделей) и кадры слоу-мо (~60 МБ картинок):
+ *   high — всё: слоу-мо со смешиванием, скан до 8 силуэтов, прицел;
+ *   mid  — слоу-мо, скан по 4 самым уверенно найденным фигурам (обычно борцы и судья) и не дольше 8 с: вышло время —
+ *          поиск останавливается на телефоне (экономит процессор) и скан идёт по готовым силуэтам; ни одного — без скана;
+ *   low  — без кадров слоу-мо и поиска людей (2 ГБ памяти — система может закрыть приложение): замерший кадр с «наездом».
+ */
+const INTRO_BY_TIER = {
+  high: { frames: true, people: 8, scanWaitMs: 0 },
+  mid: { frames: true, people: 4, scanWaitMs: 8000 },
+  low: { frames: false, people: 0, scanWaitMs: 0 },
+} as const;
 
 /** Вступление: готовая нарезка со слоу-мо (сервер досчитал кадры, annotator/make_intro.py) — первая секунда как
  *  есть, затем плавное замедление до замершего кадра. Плеер сам плавно не замедлит: без промежуточных кадров
@@ -120,7 +144,7 @@ export default function Session() {
     if (real) return;
     fetchAnalysis(demo)
       .then(setMeta)
-      .catch((e) => setMetaError(String(e.message ?? e)));
+      .catch((e) => setMetaError(userMessage(e)));
   }, [demo, real]);
   const videoUri = real
     ? (local?.uri ?? draft.videoUri ?? null)
@@ -143,6 +167,21 @@ export default function Session() {
   const [u, setU] = useState(0); // загрузка, %
   const [upStage, setUpStage] = useState<UpStage>('prep');
   const [speed, setSpeed] = useState<number | null>(null); // байт/с, сглажено
+  const [offline, setOffline] = useState(false); // пропала связь при загрузке — ждём и продолжаем сами
+  // вступление своего видео: кадры секунды схватки со смешиванием (телефон сам, без сервера)
+  const [intro, setIntro] = useState<{ f: IntroFrames; freeze: () => void; done: () => void } | null>(null);
+  // «скан» людей на замершем кадре после вступления (силуэты — по последнему кадру вступления, считает телефон)
+  const [scan, setScan] = useState<{ people: ScannedPerson[]; w: number; h: number } | null>(null);
+  // прицел MIRA — только в первом круге скана: вылетает из левого глаза MIRA (или точки статуса на плашке) к силуэтам
+  const [aim, setAim] = useState(false);
+  const scanClock = useSharedValue(-1);              // начало скана — общее у вспышек и прицела
+  const scanBoxes = useSharedValue<number[]>([]);    // рамки силуэтов в точках рамки видео
+  const hudEye = useSharedValue({ x: 0, y: 0 });     // центр прицела левого глаза MIRA в блоке визора
+  const hudCv = useSharedValue(0);                   // визор свёрнут 0…1
+  const hudGaze = useSharedValue({ x: 0, on: 0 });   // глаза MIRA — за прицелом (первый круг скана)
+  const hudRef = useAnimatedRef<RAnimated.View>();
+  const hudDotRef = useAnimatedRef<RAnimated.View>();
+  const videoRef = useAnimatedRef<RAnimated.View>();
   const [w, setW] = useState(0); // анализ, %
   const [step, setStep] = useState('Присматриваюсь');
   const [msgs, setMsgs] = useState<Msg[]>([]);
@@ -180,6 +219,12 @@ export default function Session() {
     const signal = ac.signal;
     let alive = true;
     signal.addEventListener('abort', () => (alive = false));
+    // папка кадров вступления: стереть, как только вступление сыграно или ушли с экрана
+    let introDir: string | null = null;
+    const dropIntro = () => {
+      if (introDir) releaseIntroFrames(introDir);
+      introDir = null;
+    };
     const sleep = (ms: number) =>
       new Promise<void>((res) => {
         const t = setTimeout(res, ms);
@@ -224,12 +269,12 @@ export default function Session() {
             id: job.id, uri: '', name: job.name, size: job.size, created: (job.created ?? 0) * 1000, state: job.state,
           };
           if (!resumed.uri && job.state === 'uploading') {
-            throw new Error('Видео загружалось с другого телефона и не догружено — удали этот разбор и загрузи видео заново.');
+            throw new UserError('Видео загружалось с другого телефона и не догружено — удали этот разбор и загрузи видео заново.');
           }
           setLocal(resumed);
         }
       } catch (e) {
-        if (alive) setFailed(String((e as Error).message ?? e));
+        if (alive) setFailed(userMessage(e));
         return;
       }
       if (!alive) return;
@@ -242,6 +287,55 @@ export default function Session() {
         player.currentTime = shownStart;
         player.pause();
       }, 300);
+      // вступление: видео на телефоне (только что выбранное или недосланное при возврате к разбору) — кадры первой секунды
+      // схватки достаёт телефон, пока MIRA
+      // здоровается (параллельно со сжатием); видео с сервера или из Expo Go — без вступления
+      const introSrc = resumed ? resumed.uri : draft.videoUri;
+      const tierPlan = INTRO_BY_TIER[deviceTier()];
+      const introReady: Promise<IntroFrames | null> =
+        tierPlan.frames && canPrepareOnPhone && introSrc && /^(file|content):/.test(introSrc)
+          ? extractIntroFrames(introSrc, shownStart, signal).then((r) => {
+              if (r && alive) introDir = r.dir;
+              else if (r) releaseIntroFrames(r.dir);
+              return alive ? r : null;
+            })
+          : Promise.resolve(null);
+      const playIntro = async () => {
+        if (!tierPlan.frames) {
+          // слабый телефон: без слоу-мо и скана — кадр уже стоит, камера наезжает
+          if (alive) Animated.timing(zoom, { toValue: 1, duration: 1100, easing: Easing.out(Easing.cubic), useNativeDriver: false }).start();
+          return;
+        }
+        const f = await Promise.race([introReady, sleep(4000).then(() => null)]);
+        if (!f || !alive) {
+          void introReady.then(() => dropIntro()); // не успели — кадры не нужны
+          return;
+        }
+        // силуэты для скана — по замершему кадру, пока играет вступление (папку кадров стираем после обоих);
+        // средний телефон — меньше людей и не дольше scanWaitMs (поиск сам останавливается, готовое — в скан)
+        const scanned = scanPeople(f.frames[f.frames.length - 1], tierPlan.people, tierPlan.scanWaitMs, signal);
+        await new Promise<void>((done) =>
+          setIntro({
+            f,
+            // кадр замер: под вступлением плеер встаёт на тот же кадр, камера наезжает
+            freeze: () => {
+              player.currentTime = shownStart + (f.frames.length - 1) / f.fps;
+              player.pause();
+              Animated.timing(zoom, { toValue: 1, duration: 1100, easing: Easing.out(Easing.cubic), useNativeDriver: false }).start();
+            },
+            done,
+          }),
+        );
+        setIntro(null); // картинки освобождаются при размонтировании
+        void scanned
+          .then((people) => {
+            if (alive && people?.length) {
+              setScan({ people, w: f.width, h: f.height });
+              setAim(true);
+            }
+          })
+          .finally(dropIntro);
+      };
       setPhase('chat');
       const uploaded = !!job && job.state !== 'uploading';
       setU(uploaded ? 100 : Math.round(((job?.received ?? 0) / (resumed?.size || 1)) * 100));
@@ -282,24 +376,27 @@ export default function Session() {
                 trim = undefined; // уже обрезано на телефоне
               }
             }
-            const nl = await createJob(uri, bytes, draft.videoName, draft.videoRatio, trim, signal);
+            const nl = await retryWhileOffline(
+              () => createJob(uri, bytes, draft.videoName, draft.videoRatio, trim, signal), signal, (w) => alive && setOffline(w),
+            );
             if (alive) setLocal(nl);
             return nl;
           })().catch((e) => {
-            upError = String((e as Error).message ?? e);
+            upError = userMessage(e);
             return null;
           });
       const sending = ready.then((lj) => {
         if (!lj) return undefined;
         if (alive) setUpStage('send');
-        return upload(lj, (p) => {
+        // связь пропала — не ошибка: ждём интернет и досылаем с того места, где сервер остановился
+        return retryWhileOffline(() => upload(lj, (p) => {
           if (!alive) return;
           setU(Math.round(prepShare + p * (100 - prepShare)));
           onSent(lj, p);
-        }, signal)
+        }, signal), signal, (w) => alive && setOffline(w))
           .then(() => alive && setUpStage('done'))
           .catch((e) => {
-            if (alive) upError = String((e as Error).message ?? e);
+            if (alive) upError = userMessage(e);
           });
       });
 
@@ -374,6 +471,7 @@ export default function Session() {
       const precheckFirst = sch.open && !have.go;
       let askedNow = precheckFirst; // спортсмен отвечал сейчас — сказать, сколько ждать
       await say(jobParam ? REAL.resume : precheckFirst ? REAL.openIntro : sch.open ? LINES.loaded : REAL.closedIntro, !uploaded);
+      await playIntro();
       if (precheckFirst) {
         // сначала видео целиком на сервере и оценка качества, только потом вопросы про схватку
         const lj0 = await ready;
@@ -451,6 +549,7 @@ export default function Session() {
         if (!jobParam || askedNow) await say(REAL.eta(Math.max(2, Math.round(eta / 60))));
       }
       setPhase('analyze');
+      Animated.timing(zoom, { toValue: 0, duration: 600, useNativeDriver: false }).start();
       setTimeout(() => {
         if (!alive) return;
         player.playbackRate = 0.5;
@@ -512,6 +611,10 @@ export default function Session() {
     return () => {
       ac.abort();
       resolver.current = null;
+      setIntro(null);
+      setScan(null);
+      setAim(false);
+      dropIntro();
     };
   }, [real, jobParam]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -640,7 +743,7 @@ export default function Session() {
       await sendTaps(local.id, taps);
       await sendAnswers(local.id, { points: 'yes' });
     } catch (e) {
-      setPointsErr(String((e as Error).message ?? e));
+      setPointsErr(userMessage(e));
       return;
     }
     const mid = taps[Math.floor(taps.length / 2)];
@@ -667,6 +770,7 @@ export default function Session() {
           ширина экрана минус отступы 16 */}
       <View style={{ paddingHorizontal: HUD_PAD }}>
         <MiraHud state={CY_MAP[mode]} width={screenW - HUD_PAD * 2} down={mode === 'scan'} statusText={status}
+          rootRef={hudRef} dotRef={hudDotRef} eyeOut={hudEye} cvOut={hudCv} gazeIn={hudGaze}
           statusColor={asleep ? mira.dim : statusColor} collapsed={needUser} sleep={asleep} />
       </View>
       {real ? null : (
@@ -678,11 +782,13 @@ export default function Session() {
       {/* видео, шаги и чат — один блок: при сворачивании / раскрытии визора переезжает целиком одной пружиной */}
       <RAnimated.View layout={MOVE} style={{ flex: 1 }}>
       <View style={[styles.video, videoBox]}>
+        {/* рамка видео для прицела (measure каждый кадр — едет вместе с визором) */}
+        <RAnimated.View ref={videoRef} pointerEvents="none" style={StyleSheet.absoluteFill} />
         {videoUri ? (
           <Animated.View
             style={[
               VIDEO_FILL,
-              { transform: [{ scale: zoom.interpolate({ inputRange: [0, 1], outputRange: [1, 1.07] }) }] },
+              { transform: [{ scale: zoom.interpolate({ inputRange: [0, 1], outputRange: [1, FREEZE_ZOOM] }) }] },
             ]}>
             <VideoView
             player={player}
@@ -690,6 +796,14 @@ export default function Session() {
             contentFit={vertical ? 'cover' : 'contain'}
             nativeControls={false}
           />
+            {intro ? (
+              <IntroBlend intro={intro.f} fit={vertical ? 'cover' : 'contain'} onFreeze={intro.freeze} onDone={intro.done} />
+            ) : null}
+            {/* скан — пока кадр стоит (разговор); пошёл разбор и видео поехало — убираем */}
+            {scan && phase === 'chat' && !qm && !failed ? (
+              <ScanPeople people={scan.people} imgW={scan.w} imgH={scan.h} fit={vertical ? 'cover' : 'contain'}
+                clock={scanClock} lead={AIM_LEAD_S} boxesOut={scanBoxes} />
+            ) : null}
             <Animated.View
               pointerEvents="none"
               style={[VIDEO_FILL, { backgroundColor: '#000', opacity: zoom.interpolate({ inputRange: [0, 1], outputRange: [0, 0.18] }) }]}
@@ -772,7 +886,9 @@ export default function Session() {
                 <Text style={styles.upSpeed}>
                   {upStage === 'done'
                     ? 'видео загружено'
-                    : upStage === 'prep'
+                    : offline
+                      ? 'нет интернета — жду связь…'
+                      : upStage === 'prep'
                       ? 'сжимаю видео'
                       : speed != null
                         ? fmtSpeed(speed)
@@ -865,6 +981,15 @@ export default function Session() {
       ) : null}
       <TopUpSheet visible={needTok} onClose={() => tokRes.current?.(false)} onBought={() => tokRes.current?.(true)}
         accent={SEA.sea} onAccent={SEA.onSea} reason="Для разбора нужен 1 токен." />
+      {/* прицел MIRA — поверх всего экрана (летит из визора в кадр), только первый круг скана */}
+      {scan && aim && phase === 'chat' && !qm && !failed ? (
+        <AimReticle clock={scanClock} boxes={scanBoxes} videoRef={videoRef} hudRef={hudRef} dotRef={hudDotRef}
+          eye={hudEye} cv={hudCv} hudScale={(screenW - HUD_PAD * 2) / 390} zoom={FREEZE_ZOOM} gazeOut={hudGaze}
+          onDone={() => {
+            hudGaze.set({ x: 0, on: 0 });
+            setAim(false);
+          }} />
+      ) : null}
       {pointsOpen && local ? (
         <PointsSheet jobId={local.id} error={pointsErr} onDone={pointsDone}
           onClose={() => { setPointsOpen(false); setPointsErr(undefined); }} />

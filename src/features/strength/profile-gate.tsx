@@ -9,6 +9,7 @@ import { colors, fonts } from '@/theme/tokens';
 
 import { getStrength, type Body, type Standards } from './api';
 import { Form, StyleForm } from './body-form';
+import { userMessage } from '@/lib/user-error';
 
 export const bodyReady = (b: Body) => !!b.sex && !!b.heightCm && !!b.weightKg;
 export const styleReady = (b: Body) => (b.styles?.length ?? 0) > 0 && !!b.tendency;
@@ -30,7 +31,7 @@ function GateBody({ need, onDone }: Omit<Props, 'visible' | 'onClose'>) {
     const ac = new AbortController();
     getStrength(ac.signal)
       .then((x) => setD({ body: x.body, std: x.standards }))
-      .catch((e) => !ac.signal.aborted && setErr(String((e as Error).message ?? e)));
+      .catch((e) => !ac.signal.aborted && setErr(userMessage(e)));
     return () => ac.abort();
   }, []);
   const saved = (body: Body) => {

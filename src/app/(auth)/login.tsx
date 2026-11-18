@@ -15,6 +15,7 @@ import {
   TextLink,
   authStyles,
 } from '@/components/auth/form';
+import { userMessage } from '@/lib/user-error';
 
 // Как на сайте: опрос раз в 2 секунды, не дольше 5 минут.
 const TG_POLL_MS = 2000;
@@ -96,7 +97,7 @@ export default function LoginScreen() {
       await signIn(e, password);
       // Навигатор сам переключится на вкладки (Stack.Protected в корневом layout).
     } catch (err) {
-      setError((err as Error).message);
+      setError(userMessage(err));
       setBusy(false);
     }
   };

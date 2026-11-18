@@ -9,6 +9,7 @@ import { colors, fonts } from '@/theme/tokens';
 
 import { rub, tokensWord, type Pack } from './api';
 import { useTokens } from './store';
+import { userMessage } from '@/lib/user-error';
 
 type Props = {
   visible: boolean;
@@ -53,7 +54,7 @@ function TopUpBody({ onClose, accent, onAccent, reason, onBought }: Omit<Props, 
         onClose();
       }, 1100);
     } catch (e) {
-      setErr(String((e as Error).message ?? e));
+      setErr(userMessage(e));
     } finally {
       setBusy(false);
     }

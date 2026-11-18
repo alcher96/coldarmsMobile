@@ -11,6 +11,7 @@ import { Badge, Button, Screen } from '@/features/analysis/components/kit';
 import type { AnalysisResult } from '@/features/analysis/types';
 import { colors, fonts, radii } from '@/theme/tokens';
 import { VIDEO_FILL } from '@/features/analysis/video-size';
+import { UserError, userMessage } from '@/lib/user-error';
 
 /** Разбор: видео + бейджи, ход схватки с перемоткой, главная причина, тактика эксперта, полный текст. */
 export default function ResultScreen() {
@@ -23,11 +24,11 @@ export default function ResultScreen() {
     const ac = new AbortController();
     const load = /^[0-9a-f]{32}$/.test(id)
       ? getJob(id, ac.signal).then((j) => {
-          if (!j.result) throw new Error('Разбор ещё не готов.');
+          if (!j.result) throw new UserError('Разбор ещё не готов.');
           return j.result;
         })
       : fetchAnalysis(id, ac.signal);
-    load.then(setR).catch((e) => !ac.signal.aborted && setError(String(e.message ?? e)));
+    load.then(setR).catch((e) => !ac.signal.aborted && setError(userMessage(e)));
     return () => ac.abort();
   }, [id]);
 

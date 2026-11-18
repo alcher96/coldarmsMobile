@@ -2,6 +2,7 @@ import type { Competition, Fight } from './competitions';
 import type { Round } from './fight';
 import { apiFetch, apiGet, SITE_URL } from './http';
 import type { FightOdds } from './odds';
+import { UserError } from '@/lib/user-error';
 
 /**
  * Страница соревнования — те же запросы, что у /competition/{slug}/{id} сайта
@@ -49,7 +50,7 @@ export async function loadCompetitionPage(id: string): Promise<CompetitionPage> 
     safe(apiGet<{ hasMp4: boolean }>(`/api/Competition/${id}/video`)),
     safe(apiGet<{ avgConfidence: number; avgUpsetRisk: number }>(`/api/mira/accuracy-by-competition/${id}`)),
   ]);
-  if (!competition) throw new Error('Турнир не найден');
+  if (!competition) throw new UserError('Турнир не найден');
   const fights = list ?? [];
   const rows = fights.map((f) => withRounds(f, (rounds ?? []).filter((r) => r.fightId === f.fightId)));
   const odds = rows.some((f) => !f.winner)

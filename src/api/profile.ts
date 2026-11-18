@@ -1,5 +1,6 @@
 import { apiFetch, apiGet, apiPost, SITE_URL } from './http';
 import { getAccessToken } from './session';
+import { UserError } from '@/lib/user-error';
 
 /**
  * Личный кабинет — те же семь запросов, что у /profile сайта (src/lib/profile.ts в Astro).
@@ -119,7 +120,7 @@ export async function loadMyProfile(): Promise<ProfilePage> {
     safe(apiGet<Partial<Settings>>('/profile/settings')),
     safe(apiGet<TelegramStatus>('/api/telegram/status')),
   ]);
-  if (!profile) throw new Error('Профиль недоступен');
+  if (!profile) throw new UserError('Профиль недоступен');
   return {
     profile,
     achievements: achievements ?? [],

@@ -1,6 +1,7 @@
 import type { Athlete } from './athletes';
 import type { StyleUsage, WrestlerStats } from './fight';
 import { apiFetch, apiGet, apiPost } from './http';
+import { UserError } from '@/lib/user-error';
 
 /**
  * Страница атлета — те же запросы, что у /athlete/{slug}/{id} сайта (src/lib/athlete.ts в Astro).
@@ -76,7 +77,7 @@ export async function loadAthletePage(id: string): Promise<AthletePage> {
     // Instagram сайт показывает только вошедшим — отдельным запросом, как скрипт на странице атлета.
     safe(apiGet<{ url?: string | null }>(`/api/ArmWrestler/${id}/instagram`)),
   ]);
-  if (!athlete) throw new Error('Атлет не найден');
+  if (!athlete) throw new UserError('Атлет не найден');
   const socials = (
     [
       ['youtube', 'YouTube', athlete.youtubeUrl],

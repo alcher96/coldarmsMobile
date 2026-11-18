@@ -1,6 +1,7 @@
 import { planFetch } from '@/features/analysis/api';
 
 import type { Catalog, Plan, Week } from './types';
+import { UserError } from '@/lib/user-error';
 
 // все запросы — от имени аккаунта (план строится только по своему разбору; сервер проверяет владельца)
 export const fetchCatalog = () => planFetch('/api/plan/catalog').then((r) => r.json() as Promise<Catalog>);
@@ -29,6 +30,6 @@ export async function makePlan(
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ analysis, week, months, degree, starts, inventory, static: staticType }),
   });
-  if (!res.ok) throw new Error(`Сервер плана: ${res.status}`);
+  if (!res.ok) throw Object.assign(new UserError('Не удалось получить план. Попробуй позже.'), { status: res.status });
   return res.json();
 }

@@ -1,4 +1,5 @@
 import { apiGet, apiGetPaged, SITE_URL } from './http';
+import { UserError } from '@/lib/user-error';
 
 /** Новости — те же запросы, что у /news и /news/{id} сайта. */
 
@@ -31,7 +32,7 @@ export async function loadNews(page: number, lang: 'ru' | 'en' = 'ru') {
 
 export async function loadArticle(id: string, lang: 'ru' | 'en' = 'ru') {
   const a = await apiGet<NewsArticle>(`/api/news/${id}?language=${lang}`);
-  if (!a) throw new Error('Новость не найдена');
+  if (!a) throw new UserError('Новость не найдена');
   return a;
 }
 

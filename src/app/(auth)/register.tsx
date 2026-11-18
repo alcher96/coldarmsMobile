@@ -10,6 +10,7 @@ import type { Sex } from '@/features/strength/api';
 import { rememberSex } from '@/features/strength/sync';
 import { Toggle } from '@/features/strength/ui';
 import { colors, fonts } from '@/theme/tokens';
+import { userMessage } from '@/lib/user-error';
 
 const EMAIL_RE = /^[^@\s]+@[^@\s]+$/;
 
@@ -63,7 +64,7 @@ export default function RegisterScreen() {
       if (sex) await rememberSex(email.trim(), sex);
       setSentTo(email.trim());
     } catch (err) {
-      setError((err as Error).message);
+      setError(userMessage(err));
     } finally {
       setBusy(false);
     }

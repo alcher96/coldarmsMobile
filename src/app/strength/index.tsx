@@ -17,6 +17,7 @@ import { ResultSheet } from '@/features/strength/result-sheet';
 import { LeadersList, LevelBadge, StandardsTable, Toggle, classLabel } from '@/features/strength/ui';
 import { fmtW, setUnit, useUnit } from '@/features/strength/units';
 import { colors, fonts, radii, space } from '@/theme/tokens';
+import { userMessage } from '@/lib/user-error';
 
 const SEXES: { key: Sex; label: string }[] = [{ key: 'm', label: 'Мужчины' }, { key: 'f', label: 'Женщины' }];
 const ARMS: { key: Arm; label: string }[] = [{ key: 'right', label: 'Правая' }, { key: 'left', label: 'Левая' }];
@@ -34,7 +35,7 @@ export default function StrengthScreen() {
       setData(await getStrength(signal));
       setErr(undefined);
     } catch (e) {
-      if (!signal?.aborted) setErr(String((e as Error).message ?? e));
+      if (!signal?.aborted) setErr(userMessage(e));
     }
   }, []);
   useFocusEffect(

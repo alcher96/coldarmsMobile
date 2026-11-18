@@ -1,5 +1,6 @@
 import type { Achievement, Activity, CompStat, Favorite } from './profile';
 import { apiGet, SITE_URL } from './http';
+import { UserError } from '@/lib/user-error';
 
 /** Общий поиск — как выпадающий поиск в шапке сайта (GET /api/search). */
 
@@ -42,6 +43,6 @@ export type PublicProfile = {
 
 export async function loadPublicProfile(id: string) {
   const p = await apiGet<PublicProfile>(`/api/users/${id}/public-profile`);
-  if (!p) throw new Error('Пользователь не найден');
+  if (!p) throw new UserError('Пользователь не найден');
   return p;
 }

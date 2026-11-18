@@ -2,6 +2,7 @@ import { apiGet, apiPost, SITE_URL } from './http';
 import type { Competition, Fight } from './competitions';
 import { fightComments, loadComments, type Comment } from './comments';
 import { loadFightOdds, type FightOdds } from './odds';
+import { UserError } from '@/lib/user-error';
 
 /**
  * Данные экрана боя — те же запросы, что делает страница боя сайта
@@ -262,7 +263,7 @@ const statsUrl = (id: string, asOf?: string) => `/api/ArmWrestler/${id}/stats${a
 
 export async function loadFightPage(fightId: string): Promise<FightPage> {
   const fight = await apiGet<Fight>(`/api/fights/${fightId}`);
-  if (!fight) throw new Error('Бой не найден');
+  if (!fight) throw new UserError('Бой не найден');
   const a = fight.wrestler1Id;
   const b = fight.wrestler2Id;
   const [competition, wrestler1, wrestler2, rounds, comparison, statsA, statsB, stylesA, stylesB, matrix, mira, votes, odds, comments] =

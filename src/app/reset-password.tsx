@@ -5,6 +5,7 @@ import { ActivityIndicator, Text, View, type TextInputInstance } from 'react-nat
 import { resetPassword, validateResetToken, type LinkStatus } from '@/api/auth';
 import { useAuth } from '@/auth/auth-context';
 import { AuthShell, ErrorBox, Field, PrimaryButton, TextLink, authStyles } from '@/components/auth/form';
+import { userMessage } from '@/lib/user-error';
 
 type Phase = 'checking' | 'form' | 'done' | 'expired' | 'invalid';
 
@@ -49,7 +50,7 @@ export default function ResetPasswordScreen() {
       const s = await resetPassword(token, password);
       setPhase(s === 'ok' ? 'done' : s === 'expired' ? 'expired' : 'invalid');
     } catch (err) {
-      setError((err as Error).message);
+      setError(userMessage(err));
     } finally {
       setBusy(false);
     }

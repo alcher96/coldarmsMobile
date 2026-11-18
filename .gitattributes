@@ -1,0 +1,5 @@
+# правки библиотек (patch-package) — строго с окончаниями строк Unix, как файлы в node_modules: иначе правка не наложится
+patches/*.patch text eol=lf
+# модели MediaPipe для скана — двоичные
+*.tflite binary
+*.task binary

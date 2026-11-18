@@ -10,6 +10,7 @@ import { AppState } from 'react-native';
 import { useAuth } from '@/auth/auth-context';
 
 import { buyPack, getTokens, newPurchaseKey, type Tokens } from './api';
+import { userMessage } from '@/lib/user-error';
 
 type Ctx = {
   data: Tokens | null;
@@ -37,7 +38,7 @@ export function TokensProvider({ children }: { children: ReactNode }) {
         const data = await getTokens(signal);
         setState({ acct, data });
       } catch (e) {
-        if (!signal?.aborted) setState((s) => ({ ...s, acct, error: String((e as Error).message ?? e) }));
+        if (!signal?.aborted) setState((s) => ({ ...s, acct, error: userMessage(e) }));
       }
     },
     [acct],

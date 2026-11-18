@@ -1,44 +1,22 @@
 import { router } from 'expo-router';
-import { useRef, useState } from 'react';
+import { useState } from 'react';
 import { ActivityIndicator, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { loadHome } from '@/api/home';
 import { GlassHeaderScreen } from '@/components/glass-header-screen';
 import { FocusCard } from '@/components/home/focus-card';
-import { InsightsCard } from '@/components/home/insights-card';
 import { NextTournament } from '@/components/home/next-tournament';
 import { MiraButton } from '@/features/analysis/components/mira-button';
 import { useSchedule } from '@/features/analysis/use-schedule';
 import { LeadersCard } from '@/features/strength/leaders-card';
 import { useAsync } from '@/hooks/use-async';
 import { colors, fonts, space, radii } from '@/theme/tokens';
+import { userMessage } from '@/lib/user-error';
 
 const load = () => loadHome('ru');
 
 export default function HomeScreen() {
   const { data, error, loading, refreshing, refresh } = useAsync(load);
-  // Блок аналитики: данные грузятся, когда он подъехал к экрану (с запасом 200), — как ленивые
-  // вкладки на сайте; подсказка «ленту можно листать» — пока его нижняя часть с лентой на экране.
-  const [insightsActive, setInsightsActive] = useState(false);
-  const [insightsInView, setInsightsInView] = useState(false);
-  const [insightsKey, setInsightsKey] = useState(0);
-  const insightsBox = useRef<{ y: number; height: number } | null>(null);
-  const scrollY = useRef(0);
-  const viewHeight = useRef(0);
-  const track = () => {
-    const box = insightsBox.current;
-    if (!box || !viewHeight.current) return;
-    const top = scrollY.current;
-    const bottom = top + viewHeight.current;
-    if (!insightsActive && bottom + 200 >= box.y) setInsightsActive(true);
-    const end = box.y + box.height;
-    const inView = end <= bottom && end - 200 >= top;
-    if (inView !== insightsInView) setInsightsInView(inView);
-  };
-  const onRefresh = () => {
-    setInsightsKey((k) => k + 1);
-    refresh();
-  };
   const sched = useSchedule();
   const [heroW, setHeroW] = useState(0);
 
@@ -49,21 +27,12 @@ export default function HomeScreen() {
       <ScrollView
         contentContainerStyle={[styles.content, { paddingTop: top + space.gutter }]}
         scrollIndicatorInsets={{ top }}
-        onLayout={(e) => {
-          viewHeight.current = e.nativeEvent.layout.height;
-          track();
-        }}
-        onScroll={(e) => {
-          scrollY.current = e.nativeEvent.contentOffset.y;
-          track();
-        }}
-        scrollEventThrottle={100}
-        refreshControl={<RefreshControl progressViewOffset={top} refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.text} />}>
+        refreshControl={<RefreshControl progressViewOffset={top} refreshing={refreshing} onRefresh={refresh} tintColor={colors.text} />}>
         {loading && <ActivityIndicator color={colors.text} style={styles.loader} />}
 
         {!data && error && (
           <View style={styles.error}>
-            <Text style={styles.errorText}>{error.message}</Text>
+            <Text style={styles.errorText}>{userMessage(error, 'Не удалось загрузить данные')}</Text>
             <Pressable onPress={refresh} style={styles.retry}>
               <Text style={styles.retryText}>Повторить</Text>
             </Pressable>
@@ -79,15 +48,6 @@ export default function HomeScreen() {
         )}
         {/* силовые: таблицы, где сменился лидер (вместо технического рейтинга) */}
         {data && <LeadersCard />}
-        {data && (
-          <View
-            onLayout={(e) => {
-              insightsBox.current = { y: e.nativeEvent.layout.y, height: e.nativeEvent.layout.height };
-              track();
-            }}>
-            <InsightsCard active={insightsActive} inView={insightsInView} refreshKey={insightsKey} />
-          </View>
-        )}
         {data?.news[0] && <FocusCard news={data.news[0]} />}
       </ScrollView>
         </>

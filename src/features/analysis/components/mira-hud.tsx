@@ -19,7 +19,7 @@ import {
 } from '@shopify/react-native-skia';
 import { memo, useEffect, useMemo, useState } from 'react';
 import { AccessibilityInfo, PixelRatio, StyleSheet, Text as RNText, View } from 'react-native';
-import Animated, { Extrapolation, interpolate, runOnJS, useAnimatedStyle, useFrameCallback, useSharedValue, withSpring } from 'react-native-reanimated';
+import Animated, { Extrapolation, interpolate, runOnJS, useAnimatedReaction, useAnimatedStyle, useFrameCallback, useSharedValue, withSpring } from 'react-native-reanimated';
 
 import { C_BROW, C_FUR, CE, CS, EX, GZ, lerpA, lidGeo, mixHex, revP, browGeo } from './cyber-geo';
 import { browArt, irisArt, lidArt, radial, record, statics } from './cyber-eyes';
@@ -113,6 +113,8 @@ const PATHS = {
   waveGrid: P('M11 0V22M22 0V22M33 0V22M44 0V22M55 0V22M0 5.5H66M0 11H66M0 16.5H66'),
   waveAxis: P('M0 0V22H66'),
 };
+/** Прицел левого глаза MIRA (справа на экране) — для прицела в «скане» людей (aim-reticle.tsx): тот же рисунок 100×100. */
+export const RETICLE = { ticksIn: PATHS.rcR[0], ticksOut: PATHS.rcR[1], tris: PATHS.rcR[2], corners: PATHS.rcR[3], arcTri: PATHS.raRtri };
 // стекло визора: виньетка + строки развёртки (неизменно — одна запись)
 const GLASS = record((c) => {
   c.save(); c.clipPath(PATHS.glassClip, 1, true);
@@ -156,8 +158,14 @@ function initState() {
 /** collapsed — нужно действие спортсмена (вопрос, кнопка): визор свёрнут в плашку «MIRA • статус», освобождая место
  *  видео и чату; ответил — плашка раскрывается, визор и глаза включаются заново (эксперт, 2026-11-15). Свёрнутый HUD
  *  не рисуется вовсе (кадры не считаются). */
-export const MiraHud = memo(function MiraHud({ state, width, intro = 0, down = false, statusText, statusColor, collapsed = false, sleep = false }: {
+export const MiraHud = memo(function MiraHud({ state, width, intro = 0, down = false, statusText, statusColor, collapsed = false, sleep = false,
+  rootRef, dotRef, eyeOut, cvOut, gazeIn }: {
   state: CyberState; width: number; intro?: number; down?: boolean; statusText: string; statusColor: string; collapsed?: boolean;
+  /** для прицела в «скане» (aim-reticle.tsx): блок визора и точка статуса (measure), центр прицела левого глаза MIRA
+   *  в блоке (точки экрана, с поправкой на «рыбий глаз»), насколько свёрнут визор (0…1) */
+  rootRef?: object; dotRef?: object; eyeOut?: { value: { x: number; y: number } }; cvOut?: { value: number };
+  /** куда смотреть, пока прицел идёт по силуэтам (первый круг скана): x — доля ширины экрана −1…1, on — включено */
+  gazeIn?: { value: { x: number; on: number } };
   /** вне окна разбора (21:00–06:00 МСК) MIRA спит: веки опускаются, взгляд вниз, без морганий, визор приглушён */
   sleep?: boolean;
 }) {
@@ -292,6 +300,10 @@ export const MiraHud = memo(function MiraHud({ state, width, intro = 0, down = f
       if (slpOn) { L.tgx = 0; L.tgy = 2; L.nextG = t + 1; }
       if (!rm && Math.abs(L.tgx - pxv) > 12 && t - L.bStart > 2 && Math.random() < .35) { L.bStart = t + .03; L.dbl = false; L.nextB = t + 4 + Math.random() * 3; }
     }
+    // скан людей, первый круг: глаза за прицелом — слева направо с остановками на силуэтах, взгляд чуть вниз (на кадр),
+    // как при «чтении» списка стилей (эксперт, 2026-11-18)
+    const gz = gazeIn?.value;
+    if (gz && gz.on > 0 && !slpOn && !rm) { L.tgx = gz.x * 30; L.tgy = 11; L.away = false; L.nextG = t + .12; }   // эксперт: выраженнее
     const kg = 1 - Math.exp(-dt / .045);
     L.gx += (L.tgx - L.gx) * kg; L.gy += (L.tgy - L.gy) * kg;
     const kh = 1 - Math.exp(-dt / .35);
@@ -334,6 +346,12 @@ export const MiraHud = memo(function MiraHud({ state, width, intro = 0, down = f
     L.dim += ((name === 'idle' ? .7 : 1) - L.dim) * ex(.5);
     const ix = (X) => 35 + (X + L.gx + L.hx - 60) * s, iy = EYES_Y + (148 + L.gy + L.hy - 16) * s;
     spr(L.rL, ix(263.4), iy, 220, 22); spr(L.rR, ix(636), iy, 220, 22);
+    // центр прицела левого глаза MIRA (справа) — наружу, в точках экрана блока; «рыбий глаз» сдвигает его от центра линзы
+    if (eyeOut) {
+      const qx = L.rR.x, qy = L.rR.y + LENS_Y, ux = (qx - 195) / 195, uy = (qy - LENS_Y - 85) / 85;
+      const fe = FISHEYE * Math.max(0, 1 - (ux * ux + uy * uy) / 2);
+      eyeOut.value = { x: (195 + (qx - 195) / (1 - fe)) * S, y: (LENS_Y + 85 + (qy - LENS_Y - 85) / (1 - fe)) * S };
+    }
     const lockT = slpOn ? 0 : looking ? .9 : ({ attention: 1, emotion: 1, speaking: .65, idle: .45, thinking: 0, scan: 0, listening: .65 })[name] ?? .5;
     L.lock += (lockT - L.lock) * ex(.35);
     const spd = 22 + (1 - L.lock) * 150; L.aL += spd * dt; L.aR -= spd * .85 * dt;
@@ -388,6 +406,7 @@ export const MiraHud = memo(function MiraHud({ state, width, intro = 0, down = f
 
   // свёрнут / раскрыт: высота блока, визор гаснет и уезжает вверх, плашка поднимается наверх
   const cv = useSharedValue(collapsed ? 1 : 0);
+  useAnimatedReaction(() => cv.value, (v) => { if (cvOut) cvOut.value = v; });
   const pause = () => frame.setActive(false);
   useEffect(() => {
     if (!collapsed) {
@@ -406,7 +425,7 @@ export const MiraHud = memo(function MiraHud({ state, width, intro = 0, down = f
   }));
   return (
     // без zIndex: видео и чат (идут ниже в разметке) при сворачивании наезжают поверх гаснущего визора
-    <View style={{ width, height: collapsed ? PLATE_H : H }} pointerEvents="none">
+    <Animated.View ref={rootRef} style={{ width, height: collapsed ? PLATE_H : H }} pointerEvents="none">
       <Animated.View style={[{ position: 'absolute', left: 0, top: 0, width, height: H }, vis]}>
         <Canvas style={{ position: 'absolute', left: -BLEED, top: -BLEED, width: width + BLEED * 2, height: H + BLEED * 2 }}>
           <Group transform={[{ translateX: BLEED }, { translateY: BLEED }]}>
@@ -414,13 +433,13 @@ export const MiraHud = memo(function MiraHud({ state, width, intro = 0, down = f
           </Group>
         </Canvas>
       </Animated.View>
-      <Stat O={O} S={S} cv={cv} text={statusText} color={statusColor} />
-    </View>
+      <Stat O={O} S={S} cv={cv} text={statusText} color={statusColor} dotRef={dotRef} />
+    </Animated.View>
   );
 });
 
 // MIRA и статус — внизу рамки, следуют за рамкой (параллакс); шрифты приложения
-function Stat({ O, S, cv, text, color }) {
+function Stat({ O, S, cv, text, color, dotRef }) {
   // раскрыт — внизу рамки, за рамкой (параллакс); свёрнут — плашка наверху блока
   const down = (HUD_Y + 176) * S - (PLATE_H - 22) / 2;
   const st = useAnimatedStyle(() => {
@@ -434,7 +453,7 @@ function Stat({ O, S, cv, text, color }) {
     <Animated.View style={[styles.stat, { top: (PLATE_H - 22) / 2 }, st]}>
       <RNText style={styles.name}>MIRA</RNText>
       <View style={styles.statusRow}>
-        <View style={[styles.dot, { backgroundColor: color, shadowColor: color }]} />
+        <Animated.View ref={dotRef} style={[styles.dot, { backgroundColor: color, shadowColor: color }]} />
         <RNText style={[styles.status, { color }]}>{text}</RNText>
       </View>
     </Animated.View>

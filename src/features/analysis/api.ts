@@ -2,6 +2,7 @@ import { clientKeyHeaders, refreshSession, SITE_URL } from '@/api/http';
 import { getAccessToken } from '@/api/session';
 
 import type { AnalysisResult, DemoItem } from './types';
+import { UserError } from '@/lib/user-error';
 
 /**
  * Сервер MIRA: разбор, ColdArms Token, силовые и лидерборды — основной бэкенд coldarms.com (BlackArm). Для стенда
@@ -39,7 +40,7 @@ export const mediaSource = (path: string) => ({ uri: API_URL + path, headers: au
 
 async function get<T>(path: string, signal?: AbortSignal): Promise<T> {
   const res = await analysisFetch(path, { signal });
-  if (!res.ok) throw new Error(res.status === 401 ? 'Войди в аккаунт заново.' : `Сервер анализа: ${res.status}`);
+  if (!res.ok) throw new UserError(res.status === 401 ? 'Войди в аккаунт заново.' : 'Не удалось получить разбор. Попробуй позже.');
   return res.json() as Promise<T>;
 }
 

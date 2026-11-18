@@ -10,6 +10,7 @@ import { useAsync } from '@/hooks/use-async';
 import { flagOf } from '@/lib/countries';
 import { fitText, SMALL_TEXT_SCALE } from '@/lib/text';
 import { colors, fonts, radii } from '@/theme/tokens';
+import { userMessage } from '@/lib/user-error';
 
 export const GREEN = '#4AC87C';
 
@@ -260,7 +261,7 @@ export function Loadable<T>({ load, children }: { load: () => Promise<T>; childr
   if (loading) return <ActivityIndicator color={colors.text} style={styles.loader} />;
   return (
     <View style={styles.error}>
-      <Text style={styles.errorText}>{error?.message || 'Не удалось загрузить'}</Text>
+      <Text style={styles.errorText}>{userMessage(error, 'Не удалось загрузить')}</Text>
       <Pressable onPress={refresh} style={styles.retry}>
         <Text style={styles.retryText}>Повторить</Text>
       </Pressable>

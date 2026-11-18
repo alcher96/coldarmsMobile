@@ -14,6 +14,7 @@ import { TECHNIQUES } from '@/features/analysis/choices';
 import { getStrength, saveBody, type Body, type Sex, type Standards, type Tendency } from './api';
 import { Toggle, classLabel } from './ui';
 import { fromKg, parseNum, toKg, useUnit } from './units';
+import { userMessage } from '@/lib/user-error';
 
 export function BodyForm() {
   const unit = useUnit();
@@ -23,7 +24,7 @@ export function BodyForm() {
     const ac = new AbortController();
     getStrength(ac.signal)
       .then((d) => setLoaded({ body: d.body, std: d.standards }))
-      .catch((e) => !ac.signal.aborted && setErr(String((e as Error).message ?? e)));
+      .catch((e) => !ac.signal.aborted && setErr(userMessage(e)));
     return () => ac.abort();
   }, []);
   if (!loaded) {
@@ -61,7 +62,7 @@ export function StyleForm({ initial, onSaved }: { initial: Body; onSaved: (b: Bo
       onSaved(r.body);
       setState('ok');
     } catch (e) {
-      setErr(String((e as Error).message ?? e));
+      setErr(userMessage(e));
       setState('error');
     }
   };
@@ -115,7 +116,7 @@ export function Form({ initial, std, onSaved }: { initial: Body; std: Standards;
       onSaved(r.body);
       setState('ok');
     } catch (e) {
-      setErr(String((e as Error).message ?? e));
+      setErr(userMessage(e));
       setState('error');
     }
   };

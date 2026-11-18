@@ -15,7 +15,7 @@ import { mira } from '@/features/analysis/components/mira';
 import { MONO } from '@/features/analysis/components/mira-button';
 import { MiraHud } from '@/features/analysis/components/mira-hud';
 import { DUSK, SEA } from '@/features/analysis/components/mira-theme';
-import { deleteJob, listJobs, stateLabel, type Job } from '@/features/analysis/jobs';
+import { cleanupLocalVideos, deleteJob, listJobs, stateLabel, type Job } from '@/features/analysis/jobs';
 import { useSchedule } from '@/features/analysis/use-schedule';
 import { usePlan } from '@/features/plan/store';
 import { getStrength } from '@/features/strength/api';
@@ -25,6 +25,7 @@ import { useTokens } from '@/features/tokens/store';
 import { TopUpSheet } from '@/features/tokens/top-up-sheet';
 import { currentWeek } from '@/features/plan/track';
 import { colors, fonts, space } from '@/theme/tokens';
+import { userMessage } from '@/lib/user-error';
 
 const SCENE: [CyberState, number][] = [['attention', 3.5], ['idle', 2.4], ['scan', 2.2], ['attention', 3], ['thinking', 2.6]];
 
@@ -51,10 +52,15 @@ export default function AnalysisHub() {
   const [removing, setRemoving] = useState<string | null>(null);
   const load = useCallback(async (signal?: AbortSignal) => {
     try {
-      setMine(await listJobs(signal));
+      const list = await listJobs(signal);
+      setMine(list);
       setListErr(undefined);
+      // уборка кэша по свежему списку: копии видео законченных разборов и кадры прерванных вступлений
+      void cleanupLocalVideos(list);
     } catch (e) {
-      if (!signal?.aborted) setListErr(String((e as Error).message ?? e));
+      if (signal?.aborted) return;
+      setListErr(userMessage(e));
+      void cleanupLocalVideos(); // нет связи — по тому, что помнит телефон
     }
   }, []);
   // баланс ColdArms Token — с сервера; перечитывается при каждом открытии вкладки (мог вернуться токен за упавший разбор)
@@ -95,7 +101,7 @@ export default function AnalysisHub() {
               await deleteJob(j.id);
               setMine((x) => (x ?? []).filter((y) => y.id !== j.id));
             } catch (e) {
-              setListErr(String((e as Error).message ?? e));
+              setListErr(userMessage(e));
             } finally {
               setRemoving(null);
             }

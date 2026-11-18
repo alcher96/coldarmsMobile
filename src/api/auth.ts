@@ -1,5 +1,6 @@
 import { apiFetch, apiPost, parseApiJson } from './http';
 import { clearCredentials, clearTokens, saveCredentials, saveTokensFrom } from './session';
+import { UserError } from '@/lib/user-error';
 
 export type User = {
   nickname: string | null;
@@ -20,7 +21,7 @@ function messageOf(data: unknown): string {
   return '';
 }
 
-export class AuthError extends Error {}
+export class AuthError extends UserError {}
 
 function failure(status: number, data: unknown, fallback: string): AuthError {
   if (status === 429) return new AuthError('Слишком много попыток. Подождите немного и попробуйте снова');

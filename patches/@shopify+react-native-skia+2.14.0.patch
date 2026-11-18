@@ -1,0 +1,26 @@
+diff --git a/node_modules/@shopify/react-native-skia/android/cpp/rnskia-android/RNSkOpenGLCanvasProvider.cpp b/node_modules/@shopify/react-native-skia/android/cpp/rnskia-android/RNSkOpenGLCanvasProvider.cpp
+index afce519..09f987b 100644
+--- a/node_modules/@shopify/react-native-skia/android/cpp/rnskia-android/RNSkOpenGLCanvasProvider.cpp
++++ b/node_modules/@shopify/react-native-skia/android/cpp/rnskia-android/RNSkOpenGLCanvasProvider.cpp
+@@ -50,18 +50,9 @@ bool RNSkOpenGLCanvasProvider::renderToCanvas(
+   if (_surfaceHolder != nullptr && cb != nullptr) {
+     // Get the surface
+     auto surface = _surfaceHolder->getSurface();
+-    if (_jSurfaceTexture) {
+-      JNIEnv *env = facebook::jni::Environment::current();
+-      env->CallVoidMethod(_jSurfaceTexture, _updateTexImageMethod);
+-
+-      // Check for exceptions
+-      if (env->ExceptionCheck()) {
+-        RNSkLogger::logToConsole(
+-            "updateAndRelease() failed. The exception above "
+-            "can safely be ignored");
+-        env->ExceptionClear();
+-      }
+-    }
++    // coldarmsMob (patches/): updateTexImage на стороне производителя не нужен — кадры TextureView забирает система;
++    // на Android 17 вызов каждый кадр бросал исключение («LegacySurfaceTexture is not attached» + запись в журнал,
++    // 60 раз в секунду на анимированном холсте)
+     if (surface) {
+       // Draw into canvas using callback
+       cb(surface->getCanvas());

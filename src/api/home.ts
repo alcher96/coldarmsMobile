@@ -1,6 +1,7 @@
 import type { Competition, Fight } from './competitions';
 import { apiGet, apiGetPaged } from './http';
 import type { NewsItem } from './news';
+import { UserError } from '@/lib/user-error';
 
 export type { Competition } from './competitions';
 export type { NewsItem } from './news';
@@ -23,7 +24,7 @@ export async function loadHome(lang: 'ru' | 'en' = 'ru'): Promise<HomeData> {
   ]);
 
   if (!comps && !news) {
-    throw new Error('Не удалось загрузить данные');
+    throw new UserError('Не удалось загрузить данные');
   }
 
   const competition = comps?.items[0] ?? null;

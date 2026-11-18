@@ -4,6 +4,7 @@ import { Text, View } from 'react-native';
 
 import { forgotPassword } from '@/api/auth';
 import { AuthShell, ErrorBox, Field, PrimaryButton, TextLink, authStyles } from '@/components/auth/form';
+import { userMessage } from '@/lib/user-error';
 
 const EMAIL_RE = /^[^@\s]+@[^@\s]+$/;
 
@@ -25,7 +26,7 @@ export default function ForgotPasswordScreen() {
       await forgotPassword(e);
       setSent(true);
     } catch (err) {
-      setError((err as Error).message);
+      setError(userMessage(err));
     } finally {
       setBusy(false);
     }

@@ -11,6 +11,7 @@ import { colors, fonts } from '@/theme/tokens';
 import { levelOf, submitResult, uploadProof, type Arm, type Body, type Result, type Standards } from './api';
 import { LevelBadge } from './ui';
 import { fmtW, parseNum, toKg, useUnit } from './units';
+import { userMessage } from '@/lib/user-error';
 
 type Props = {
   visible: boolean;
@@ -74,7 +75,7 @@ function SheetBody({ onClose, onSaved, std, body, exercise, arm, attach }: Omit<
       onSaved();
       setTimeout(onClose, 1300);
     } catch (e) {
-      setErr(String((e as Error).message ?? e));
+      setErr(userMessage(e));
     } finally {
       setBusy(false);
       setProgress(null);

@@ -1,5 +1,6 @@
 import type { Hand } from './fight';
 import { apiGet } from './http';
+import { UserError } from '@/lib/user-error';
 
 /**
  * Аналитика по всей базе — те же эндпоинты, что у блока «Данные, которые решают» на главной сайта
@@ -176,7 +177,7 @@ function cached<T>(path: string, force = false): Promise<T> {
   const hit = cache.get(path);
   if (!force && hit && Date.now() - hit.at < TTL_MS) return hit.promise as Promise<T>;
   const promise = apiGet<T>(path).then((data) => {
-    if (data == null) throw new Error('Нет данных');
+    if (data == null) throw new UserError('Нет данных');
     return data;
   });
   cache.set(path, { at: Date.now(), promise });
@@ -212,7 +213,7 @@ export async function loadKpis(force?: boolean): Promise<Kpi[]> {
     experience ? { value: formatNumber(experience.averageFightsPerAthlete), label: 'Боёв на атлета' } : null,
   ];
   const list = kpis.filter((k): k is Kpi => k != null);
-  if (!list.length) throw new Error('Не удалось загрузить аналитику');
+  if (!list.length) throw new UserError('Не удалось загрузить аналитику');
   return list;
 }
 
@@ -294,7 +295,7 @@ export async function loadInsights(force?: boolean): Promise<Insight[]> {
       : null,
   ];
   const insights = list.filter((x): x is Insight => x != null);
-  if (!insights.length) throw new Error('Не удалось загрузить аналитику');
+  if (!insights.length) throw new UserError('Не удалось загрузить аналитику');
   return insights;
 }
 

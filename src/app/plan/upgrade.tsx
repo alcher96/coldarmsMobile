@@ -9,6 +9,7 @@ import { PlanView } from '@/features/plan/plan-view';
 import { usePlan } from '@/features/plan/store';
 import { gearOfWeek, type Catalog, type Plan } from '@/features/plan/types';
 import { colors, fonts, radii } from '@/theme/tokens';
+import { userMessage } from '@/lib/user-error';
 
 const DEGREES = [
   { key: 'weak', label: 'Слабая', hint: 'Добавить 2 подсобных упражнения на слабые места' },
@@ -55,7 +56,7 @@ export default function Upgrade() {
     setError(undefined);
     makePlan(analysis, week, months, degree, s, [...gear], staticType)
       .then(setPlan)
-      .catch((e) => setError(String(e.message ?? e)))
+      .catch((e) => setError(userMessage(e)))
       .finally(() => setBusy(false));
   };
 
