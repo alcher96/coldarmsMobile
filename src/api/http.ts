@@ -7,6 +7,9 @@ const TIMEOUT_MS = 10_000;
 /** Из .env.local (EXPO_PUBLIC_CA_CLIENT_KEY); для сборок EAS — из переменных окружения EAS. */
 const CLIENT_KEY = process.env.EXPO_PUBLIC_CA_CLIENT_KEY;
 
+/** Заголовок ключа приложения для запросов к coldarms.com мимо rawFetch (сервер MIRA, загрузка видео). */
+export const clientKeyHeaders = (): Record<string, string> => (CLIENT_KEY ? { 'X-CA-Client': CLIENT_KEY } : {});
+
 export class ApiError extends Error {
   constructor(
     readonly status: number,

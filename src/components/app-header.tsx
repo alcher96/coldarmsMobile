@@ -7,7 +7,10 @@ import { useNotifications } from '@/notifications/notifications-context';
 import { initialsOf } from '@/lib/format';
 import { colors, fonts, space, radii } from '@/theme/tokens';
 
-/** Шапка: логотип, колокольчик уведомлений, аватар с инициалами пользователя. */
+export const HEADER_HEIGHT = 56;
+
+/** Шапка: логотип, колокольчик уведомлений, аватар с инициалами пользователя. Фона нет — шапка лежит на «стекле»
+ *  (GlassHeaderScreen): содержимое вкладки прокручивается под ней и размывается. */
 export function AppHeader() {
   const { user } = useAuth();
   const initials = initialsOf(user?.nickname ?? user?.email);
@@ -63,13 +66,11 @@ const styles = StyleSheet.create({
   },
   badgeText: { fontFamily: fonts.bodySemi, fontSize: 9, lineHeight: 11, color: colors.text },
   root: {
-    height: 56,
+    height: HEADER_HEIGHT,
     paddingHorizontal: space.gutter,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: colors.divider,
   },
   logo: { flexDirection: 'row', alignItems: 'center' },
   logoBar: { width: 3, height: 22, backgroundColor: colors.accent, marginRight: 8 },

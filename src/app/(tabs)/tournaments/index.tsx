@@ -2,10 +2,9 @@ import { router } from 'expo-router';
 import { ArrowUpRight } from 'lucide-react-native';
 import { useCallback } from 'react';
 import { ActivityIndicator, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { loadCompetitionsOverview, loadCompetitionsPage, SERIES, type Series } from '@/api/competitions';
-import { AppHeader } from '@/components/app-header';
+import { GlassHeaderScreen } from '@/components/glass-header-screen';
 import { ScreenTitle } from '@/components/screen-title';
 import { SearchField } from '@/components/search-field';
 import { Segmented } from '@/components/segmented';
@@ -34,13 +33,15 @@ export default function TournamentsScreen() {
   const { data, error, loading, refreshing, refresh } = useAsync(load);
 
   return (
-    <SafeAreaView style={styles.root} edges={['top']}>
-      <AppHeader />
+    <GlassHeaderScreen>
+      {(top) => (
+        <>
       <ScrollView
-        contentContainerStyle={styles.content}
+        contentContainerStyle={[styles.content, { paddingTop: top + space.gutter }]}
+        scrollIndicatorInsets={{ top }}
         keyboardShouldPersistTaps="handled"
         keyboardDismissMode="on-drag"
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refresh} tintColor={colors.text} />}>
+        refreshControl={<RefreshControl progressViewOffset={top} refreshing={refreshing} onRefresh={refresh} tintColor={colors.text} />}>
         <ScreenTitle eyebrow="Мировая сцена" title="Турниры" subtitle="Календарь, поединки и архив результатов" />
         <Segmented options={SERIES} value={series} onChange={seriesState.set} />
         <SearchField value={query} onChangeText={setQuery} onSubmit={submit} />
@@ -94,7 +95,9 @@ export default function TournamentsScreen() {
           </View>
         )}
       </ScrollView>
-    </SafeAreaView>
+        </>
+      )}
+    </GlassHeaderScreen>
   );
 }
 

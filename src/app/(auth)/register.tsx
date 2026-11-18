@@ -1,11 +1,15 @@
 import { router } from 'expo-router';
 import * as WebBrowser from 'expo-web-browser';
 import { useState } from 'react';
-import { Text, View } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
 
 import { register } from '@/api/auth';
 import { SITE_URL } from '@/api/http';
 import { AuthShell, Checkbox, ErrorBox, Field, PrimaryButton, TextLink, authStyles } from '@/components/auth/form';
+import type { Sex } from '@/features/strength/api';
+import { rememberSex } from '@/features/strength/sync';
+import { Toggle } from '@/features/strength/ui';
+import { colors, fonts } from '@/theme/tokens';
 
 const EMAIL_RE = /^[^@\s]+@[^@\s]+$/;
 
@@ -20,6 +24,7 @@ export default function RegisterScreen() {
   const [confirm, setConfirm] = useState('');
   const [terms, setTerms] = useState(false);
   const [pd, setPd] = useState(false);
+  const [sex, setSex] = useState<Sex | null>(null);
   const [errors, setErrors] = useState<Errors>({});
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -55,6 +60,7 @@ export default function RegisterScreen() {
         acceptTerms: terms,
         acceptPersonalData: pd,
       });
+      if (sex) await rememberSex(email.trim(), sex);
       setSentTo(email.trim());
     } catch (err) {
       setError((err as Error).message);
@@ -128,6 +134,8 @@ export default function RegisterScreen() {
         autoComplete="new-password"
         textContentType="newPassword"
       />
+      <Text style={sexStyles.label}>Пол — по желанию (нужен для нормативов силовых)</Text>
+      <Toggle options={[{ key: 'm', label: 'Мужской' }, { key: 'f', label: 'Женский' }]} value={sex ?? ('' as Sex)} onChange={setSex} />
       <Checkbox checked={terms} onChange={setTerms} error={!!errors.terms}>
         Принимаю{' '}
         <TextLink accent onPress={() => openDoc('/terms')}>
@@ -144,3 +152,7 @@ export default function RegisterScreen() {
     </AuthShell>
   );
 }
+
+const sexStyles = StyleSheet.create({
+  label: { fontFamily: fonts.bodySemi, fontSize: 12, color: colors.textMuted, marginBottom: -4 },
+});

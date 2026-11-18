@@ -1,19 +1,19 @@
 import { StyleSheet, Text, View } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { AppHeader } from '@/components/app-header';
+import { GlassHeaderScreen } from '@/components/glass-header-screen';
 import { colors, fonts, space } from '@/theme/tokens';
 
 /** Заглушка для вкладок, которые ещё не сверстаны. */
 export function PlaceholderScreen({ title }: { title: string }) {
   return (
-    <SafeAreaView style={styles.root} edges={['top']}>
-      <AppHeader />
-      <View style={styles.body}>
-        <Text style={styles.title}>{title}</Text>
-        <Text style={styles.text}>Раздел в разработке</Text>
-      </View>
-    </SafeAreaView>
+    <GlassHeaderScreen>
+      {(top) => (
+        <View style={[styles.body, { paddingTop: top + space.gutter }]}>
+          <Text style={styles.title}>{title}</Text>
+          <Text style={styles.text}>Раздел в разработке</Text>
+        </View>
+      )}
+    </GlassHeaderScreen>
   );
 }
 

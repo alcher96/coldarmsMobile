@@ -1,13 +1,13 @@
 import { Image } from 'expo-image';
 import * as ImagePicker from 'expo-image-picker';
 import { Camera, X } from 'lucide-react-native';
-import { useCallback, useState } from 'react';
+import { useLocalSearchParams } from 'expo-router';
+import { useCallback, useEffect, useState } from 'react';
 import { ActivityIndicator, Alert, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { avatarSource, loadMyProfile, removeFavorite, uploadAvatar, type Favorite, type ProfilePage } from '@/api/profile';
 import { useAuth } from '@/auth/auth-context';
-import { AppHeader } from '@/components/app-header';
+import { GlassHeaderScreen } from '@/components/glass-header-screen';
 import { fc } from '@/components/fight/palette';
 import { Empty, FavoriteRow, ProfileOverview } from '@/components/profile/overview';
 import { ProfileSettings } from '@/components/profile/settings';
@@ -28,6 +28,12 @@ export default function ProfileScreen() {
   const { data, error, loading, refresh, refreshing } = useAsync(loadMyProfile);
   const { signOut } = useAuth();
   const [tab, setTab] = useState<Tab>('overview');
+  // ?tab=settings — сразу «Настройки» (из «Силовых»: рост и вес меняются здесь)
+  const { tab: tabParam } = useLocalSearchParams<{ tab?: Tab }>();
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- вкладка следует за параметром перехода
+    if (tabParam && TABS.some((t) => t.key === tabParam)) setTab(tabParam);
+  }, [tabParam]);
 
   const confirmSignOut = () =>
     Alert.alert('Выйти из аккаунта?', 'Чтобы вернуться, понадобится снова ввести почту и пароль.', [
@@ -36,8 +42,9 @@ export default function ProfileScreen() {
     ]);
 
   return (
-    <SafeAreaView style={styles.root} edges={['top']}>
-      <AppHeader />
+    <GlassHeaderScreen underScroll={false}>
+      {(top) => (
+        <>
       {!data ? (
         <View style={styles.center}>
           {loading ? (
@@ -78,7 +85,9 @@ export default function ProfileScreen() {
           </View>
         </ScrollView>
       )}
-    </SafeAreaView>
+        </>
+      )}
+    </GlassHeaderScreen>
   );
 }
 

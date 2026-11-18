@@ -2,7 +2,6 @@ import { router } from 'expo-router';
 import { Check, ChevronDown, LayoutGrid, List } from 'lucide-react-native';
 import { useCallback, useState } from 'react';
 import { ActivityIndicator, FlatList, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
 
 import {
   DEFAULT_FILTERS,
@@ -11,7 +10,7 @@ import {
   type Athlete,
   type AthleteFilters,
 } from '@/api/athletes';
-import { AppHeader } from '@/components/app-header';
+import { GlassHeaderScreen } from '@/components/glass-header-screen';
 import { AthleteCard, AthleteRow } from '@/components/athletes/athlete-card';
 import { Sheet } from '@/components/fight/info-sheet';
 import { ScreenTitle } from '@/components/screen-title';
@@ -123,8 +122,9 @@ export default function AthletesScreen() {
   const openAthlete = (w: Athlete) => router.push({ pathname: '/athlete/[id]', params: { id: w.armWrestlerId } });
 
   return (
-    <SafeAreaView style={styles.root} edges={['top']}>
-      <AppHeader />
+    <GlassHeaderScreen>
+      {(top) => (
+        <>
       <FlatList
         key={view}
         data={items}
@@ -159,12 +159,13 @@ export default function AthletesScreen() {
             ) : null}
           </View>
         }
-        contentContainerStyle={styles.content}
+        contentContainerStyle={[styles.content, { paddingTop: top + space.gutter }]}
+        scrollIndicatorInsets={{ top }}
         onEndReached={loadMore}
         onEndReachedThreshold={0.6}
         keyboardShouldPersistTaps="handled"
         keyboardDismissMode="on-drag"
-        refreshControl={<RefreshControl refreshing={false} onRefresh={reload} tintColor={colors.text} />}
+        refreshControl={<RefreshControl progressViewOffset={top} refreshing={false} onRefresh={reload} tintColor={colors.text} />}
       />
 
       <Sheet visible={countriesOpen} onClose={() => setCountriesOpen(false)} bare>
@@ -194,7 +195,9 @@ export default function AthletesScreen() {
         </ScrollView>
       </Sheet>
 
-    </SafeAreaView>
+        </>
+      )}
+    </GlassHeaderScreen>
   );
 }
 

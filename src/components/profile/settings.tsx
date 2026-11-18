@@ -18,6 +18,8 @@ import { fc } from '@/components/fight/palette';
 import { countryName, flagOf } from '@/lib/countries';
 import { colors, fonts, radii } from '@/theme/tokens';
 
+import { BodyForm } from '@/features/strength/body-form';
+
 import { Section } from './overview';
 
 const COUNTRY_CODES = [
@@ -39,6 +41,7 @@ export function ProfileSettings({
   return (
     <View style={styles.list}>
       <ProfileForm page={page} onSaved={onSaved} />
+      <BodyForm />
       <EmailCard page={page} />
       <Toggles initial={page.settings} />
       {page.telegram?.available !== false ? <TelegramCard initial={page.telegram} onChanged={onSaved} /> : null}

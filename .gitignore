@@ -41,3 +41,8 @@ example
 # generated native folders
 /ios
 /android
+
+# сборка нативных модулей и локальные файлы сессий — не в репо
+modules/*/android/build/
+/.claude.zip
+/2026-*.txt

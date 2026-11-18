@@ -1,14 +1,15 @@
 import { router } from 'expo-router';
 import { useRef, useState } from 'react';
 import { ActivityIndicator, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { loadHome } from '@/api/home';
-import { AppHeader } from '@/components/app-header';
-import { AnalyzeCard } from '@/components/home/analyze-card';
+import { GlassHeaderScreen } from '@/components/glass-header-screen';
 import { FocusCard } from '@/components/home/focus-card';
 import { InsightsCard } from '@/components/home/insights-card';
 import { NextTournament } from '@/components/home/next-tournament';
+import { MiraButton } from '@/features/analysis/components/mira-button';
+import { useSchedule } from '@/features/analysis/use-schedule';
+import { LeadersCard } from '@/features/strength/leaders-card';
 import { useAsync } from '@/hooks/use-async';
 import { colors, fonts, space, radii } from '@/theme/tokens';
 
@@ -38,12 +39,16 @@ export default function HomeScreen() {
     setInsightsKey((k) => k + 1);
     refresh();
   };
+  const sched = useSchedule();
+  const [heroW, setHeroW] = useState(0);
 
   return (
-    <SafeAreaView style={styles.root} edges={['top']}>
-      <AppHeader />
+    <GlassHeaderScreen>
+      {(top) => (
+        <>
       <ScrollView
-        contentContainerStyle={styles.content}
+        contentContainerStyle={[styles.content, { paddingTop: top + space.gutter }]}
+        scrollIndicatorInsets={{ top }}
         onLayout={(e) => {
           viewHeight.current = e.nativeEvent.layout.height;
           track();
@@ -53,7 +58,7 @@ export default function HomeScreen() {
           track();
         }}
         scrollEventThrottle={100}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.text} />}>
+        refreshControl={<RefreshControl progressViewOffset={top} refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.text} />}>
         {loading && <ActivityIndicator color={colors.text} style={styles.loader} />}
 
         {!data && error && (
@@ -66,7 +71,14 @@ export default function HomeScreen() {
         )}
 
         {data?.competition && <NextTournament competition={data.competition} mainFight={data.mainFight} />}
-        {data && <AnalyzeCard onPress={() => router.navigate('/analysis')} />}
+        {/* MIRA: глаз запечён в видео (mobile/scripts/bake-mira-button.js в coldarmsAI) → вкладка «Анализ» */}
+        {data && (
+          <View onLayout={(e) => setHeroW(e.nativeEvent.layout.width)}>
+            {heroW ? <MiraButton width={heroW} open={sched.open} onPress={() => router.navigate('/analysis')} /> : null}
+          </View>
+        )}
+        {/* силовые: таблицы, где сменился лидер (вместо технического рейтинга) */}
+        {data && <LeadersCard />}
         {data && (
           <View
             onLayout={(e) => {
@@ -78,7 +90,9 @@ export default function HomeScreen() {
         )}
         {data?.news[0] && <FocusCard news={data.news[0]} />}
       </ScrollView>
-    </SafeAreaView>
+        </>
+      )}
+    </GlassHeaderScreen>
   );
 }
 

@@ -57,7 +57,8 @@
           "microphonePermission": false
         }
       ],
-      "expo-video"
+      "expo-video",
+      "./plugins/allow-local-http"
     ],
     "experiments": {
       "typedRoutes": true,

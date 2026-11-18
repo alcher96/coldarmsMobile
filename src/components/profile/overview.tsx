@@ -8,6 +8,8 @@ import { FighterAvatar } from '@/components/tournaments/fighter-avatar';
 import { flagOf } from '@/lib/countries';
 import { timeAgo } from '@/lib/format';
 import { colors, fonts, radii } from '@/theme/tokens';
+import { StrengthCard } from '@/features/strength/strength-card';
+import { TokensCard } from '@/features/tokens/tokens-card';
 
 const CATS: [string, string][] = [
   ['all', 'Все'],
@@ -31,6 +33,8 @@ export const winRateColor = (wr: number) => (wr >= 75 ? '#4AC87C' : wr >= 50 ? c
 export function ProfileOverview({ page, onAllFavorites }: { page: ProfilePage; onAllFavorites: () => void }) {
   return (
     <View style={styles.list}>
+      <TokensCard />
+      <StrengthCard />
       <Achievements items={page.achievements} />
       <CompStats items={page.compStats} />
       <ActivityFeed items={page.activity} />
