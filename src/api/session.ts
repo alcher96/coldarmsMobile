@@ -64,27 +64,10 @@ export async function dropAccessToken() {
 }
 
 /**
- * Почта и пароль для тихого повторного входа. Сессия Keycloak умирает через час без активности,
- * поэтому, когда продлить её уже нельзя, приложение входит заново само, не показывая форму.
- * Хранятся в системном защищённом хранилище (Android Keystore / iOS Keychain), только на устройстве.
+ * Почта и пароль больше не хранятся (2026-11-19): вход — долгой оффлайн-сессией Keycloak, продление — токеном.
+ * Прежние версии приложения сохраняли пароль для тихого повторного входа — стираем его при запуске.
  */
-export type Credentials = { email: string; password: string };
-
-export async function saveCredentials(c: Credentials) {
-  await write(CREDENTIALS_KEY, JSON.stringify(c));
-}
-
-export async function loadCredentials(): Promise<Credentials | null> {
-  try {
-    const raw = await read(CREDENTIALS_KEY);
-    const c = raw ? (JSON.parse(raw) as Credentials) : null;
-    return c?.email && c.password ? c : null;
-  } catch {
-    return null;
-  }
-}
-
-export async function clearCredentials() {
+export async function forgetSavedPassword() {
   await write(CREDENTIALS_KEY, null);
 }
 

@@ -3,7 +3,7 @@ import { createContext, use, useCallback, useEffect, useMemo, useState, type Rea
 import * as authApi from '@/api/auth';
 import { resetMyId } from '@/api/profile';
 import { refreshSession, setSessionExpiredHandler } from '@/api/http';
-import { loadTokens } from '@/api/session';
+import { forgetSavedPassword, loadTokens } from '@/api/session';
 
 type Status = 'loading' | 'signedIn' | 'signedOut';
 
@@ -36,6 +36,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     (async () => {
       try {
         await loadTokens();
+        // прежние версии хранили пароль для тихого входа — теперь долгая сессия токеном, пароль стираем
+        void forgetSavedPassword().catch(() => {});
         const me = await authApi.fetchMe();
         if (me) {
           setUser(me);

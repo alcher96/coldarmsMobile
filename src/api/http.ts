@@ -1,4 +1,4 @@
-import { clearCredentials, clearTokens, dropAccessToken, getAccessToken, loadCredentials, saveTokensFrom } from './session';
+import { dropAccessToken, getAccessToken, getRefreshToken, saveTokensFrom } from './session';
 
 export const SITE_URL = 'https://coldarms.com';
 
@@ -53,6 +53,12 @@ async function rawFetch(path: string, init: RequestInit = {}): Promise<Response>
   // Ключ приложения: без него сайт снаружи отдаёт 404 на всё API, кроме нужного браузеру.
   // ⚠️ Временный — перед публикацией в стор заменить на токен установки (см. TODO.md).
   if (CLIENT_KEY && !headers.has('x-ca-client')) headers.set('x-ca-client', CLIENT_KEY);
+  // Запрос из приложения: при входе сервер выдаёт долгую сессию (оффлайн-токен Keycloak) и отдаёт токен продления
+  // в теле — вход «навсегда», пока приложением пользуются (BlackArm AppClientExtensions).
+  if (!headers.has('x-ca-device')) headers.set('x-ca-device', 'app');
+  // Запрос из приложения: при входе сервер выдаёт долгую сессию (оффлайн-токен Keycloak) и отдаёт токен продления
+  // в теле — вход «навсегда», пока приложением пользуются (BlackArm AppClientExtensions).
+  if (!headers.has('x-ca-device')) headers.set('x-ca-device', 'app');
   try {
     // credentials: 'include' — куки сессии из нативного cookie-jar уходят вместе с запросом.
     return await fetch(SITE_URL + path, { ...init, headers, credentials: 'include', signal: controller.signal });
@@ -64,39 +70,23 @@ async function rawFetch(path: string, init: RequestInit = {}): Promise<Response>
 // Один общий рефреш на пачку одновременных 401 — как на сайте.
 let inflightRefresh: Promise<boolean> | null = null;
 
+/**
+ * Продление сессии токеном из защищённого хранилища (заголовком X-Refresh-Token): сервер отвечает новым токеном
+ * продления (прежний перестаёт действовать — ротация) и новым токеном доступа. Нет своего токена (вошли до перехода на
+ * долгую сессию) — продление кукой, как раньше. Пароль на телефоне не хранится: истекла сессия — вход заново.
+ */
 async function tryRefresh(): Promise<boolean> {
-  const r = await rawFetch('/auth/refresh', { method: 'POST' });
+  const refresh = getRefreshToken();
+  const r = await rawFetch('/auth/refresh', { method: 'POST', headers: refresh ? { 'x-refresh-token': refresh } : {} });
   if (!r.ok) return false;
   if (!(await saveTokensFrom(await readJson(r)))) await dropAccessToken();
   return true;
 }
 
-/**
- * Тихий повторный вход по сохранённым почте и паролю — когда refresh-токен уже истёк
- * (Keycloak держит сессию час без активности). Неверный пароль (сменили на сайте) — забываем его.
- */
-async function silentLogin(): Promise<boolean> {
-  const c = await loadCredentials();
-  if (!c) return false;
-  await clearTokens();
-  const r = await rawFetch('/login', {
-    method: 'POST',
-    headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ email: c.email, password: c.password }),
-  });
-  if (r.status === 400 || r.status === 401) {
-    await clearCredentials();
-    return false;
-  }
-  if (!r.ok) return false;
-  await saveTokensFrom(await readJson(r));
-  return true;
-}
-
 export function refreshSession(): Promise<boolean> {
+  // один запрос продления на пачку одновременных 401: с ротацией токена второй параллельный запрос пришёл бы со старым
   inflightRefresh ??= tryRefresh()
     .catch(() => false)
-    .then((ok) => ok || silentLogin().catch(() => false))
     .finally(() => {
       setTimeout(() => (inflightRefresh = null), 3000);
     });
@@ -141,16 +131,16 @@ export async function apiGet<T>(path: string): Promise<T | null> {
 export async function apiPost<T = unknown>(
   path: string,
   body?: unknown,
-  opts?: { retry?: boolean },
+  opts?: { retry?: boolean; headers?: Record<string, string> },
 ): Promise<{ ok: boolean; status: number; data: T | null }> {
   const r = await apiFetch(
     path,
     {
       method: 'POST',
-      headers: body === undefined ? undefined : { 'content-type': 'application/json' },
+      headers: { ...(body === undefined ? {} : { 'content-type': 'application/json' }), ...opts?.headers },
       body: body === undefined ? undefined : JSON.stringify(body),
     },
-    opts,
+    { retry: opts?.retry },
   );
   return { ok: r.ok, status: r.status, data: (await readJson(r)) as T | null };
 }

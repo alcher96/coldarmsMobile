@@ -1,5 +1,5 @@
 import { apiFetch, apiPost, parseApiJson } from './http';
-import { clearCredentials, clearTokens, saveCredentials, saveTokensFrom } from './session';
+import { clearTokens, getRefreshToken, saveTokensFrom } from './session';
 import { UserError } from '@/lib/user-error';
 
 export type User = {
@@ -44,9 +44,8 @@ export async function login(email: string, password: string) {
   const r = await call('/login', { email, password });
   if (r.status === 401) throw new AuthError('Неверная почта или пароль');
   if (!r.ok) throw failure(r.status, r.data, 'Не удалось войти. Попробуйте позже');
+  // Долгая сессия (оффлайн-токен): токен продления — в защищённом хранилище, пароль на телефоне не хранится.
   await saveTokensFrom(r.data);
-  // Чтобы не вводить пароль снова, когда сессия на сервере истечёт (см. silentLogin в http.ts).
-  await saveCredentials({ email, password });
 }
 
 export type RegisterInput = {
@@ -86,10 +85,8 @@ export async function pollTelegramLogin(token: string): Promise<'ok' | 'pending'
   const data = r.ok ? parseApiJson(await r.text()) : null;
   const status = data && typeof data === 'object' && 'status' in data ? data.status : null;
   if (status === 'ok') {
-    // Сессия приходит куками (как на сайте); если сервер положил токены и в тело — сохраним их.
+    // Долгая сессия: токены — в теле ответа (запрос из приложения), сохраняем в защищённом хранилище.
     await saveTokensFrom(data);
-    // Пароля нет — тихий повторный вход по почте здесь невозможен, старые данные не нужны.
-    await clearCredentials();
     return 'ok';
   }
   return status === 'expired' ? 'expired' : 'pending';
@@ -140,9 +137,12 @@ export async function fetchMe(): Promise<User | null> {
   };
 }
 
+/** Выход: токен продления отзывается на сервере (оффлайн-сессия закрыта — с этого телефона больше не войти им),
+ *  затем стирается с телефона. Нет связи — всё равно выходим; сессия на сервере истечёт по сроку простоя. */
 export async function logout() {
+  const refresh = getRefreshToken();
   try {
-    await apiPost('/auth/logout', undefined, { retry: false });
+    await apiPost('/auth/logout', undefined, { retry: false, headers: refresh ? { 'x-refresh-token': refresh } : {} });
   } catch {}
-  await Promise.all([clearTokens(), clearCredentials()]);
+  await clearTokens();
 }

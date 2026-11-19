@@ -28,7 +28,9 @@
             { "scheme": "https", "host": "coldarms.com", "pathPrefix": "/verify-email" },
             { "scheme": "https", "host": "coldarms.com", "pathPrefix": "/reset-password" },
             { "scheme": "https", "host": "coldarms.com", "pathPrefix": "/en/verify-email" },
-            { "scheme": "https", "host": "coldarms.com", "pathPrefix": "/en/reset-password" }
+            { "scheme": "https", "host": "coldarms.com", "pathPrefix": "/en/reset-password" },
+            { "scheme": "https", "host": "coldarms.com", "pathPrefix": "/athlete/" },
+            { "scheme": "https", "host": "coldarms.com", "pathPrefix": "/en/athlete/" }
           ],
           "category": ["BROWSABLE", "DEFAULT"]
         }
@@ -58,7 +60,8 @@
         }
       ],
       "expo-video",
-      "./plugins/allow-local-http"
+      "./plugins/allow-local-http",
+      "./plugins/release-signing"
     ],
     "experiments": {
       "typedRoutes": true,

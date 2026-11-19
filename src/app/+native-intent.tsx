@@ -2,6 +2,8 @@
  * Входящие ссылки → маршруты приложения.
  * - Письма ведут на coldarms.com/verify-email?token=… и /reset-password?token=…, иногда с префиксом
  *   языка /en — у приложения такого префикса нет.
+ * - Атлет на сайте — coldarms.com/athlete/{имя-латиницей}/{id}, в приложении — /athlete/{id} (App Links: ссылка на
+ *   атлета открывает приложение, если оно установлено; подтверждение — public/.well-known/assetlinks.json сайта).
  * - Запуск с иконки в собранном приложении приходит как `coldarms:///` — без пути роутер его не узнаёт,
  *   поэтому свою схему сводим к пути внутри приложения (`coldarms://news/1` → `/news/1`).
  */
@@ -15,7 +17,9 @@ export function redirectSystemPath({ path }: { path: string; initial: boolean })
     }
     const url = new URL(path, 'https://coldarms.com');
     if (url.protocol === 'http:' || url.protocol === 'https:') {
-      const local = url.pathname.replace(/^\/en(?=\/|$)/, '') || '/';
+      const local = (url.pathname.replace(/^\/en(?=\/|$)/, '') || '/')
+        // атлет: /athlete/{имя}/{id} → /athlete/{id}
+        .replace(/^\/athlete\/[^/]+\/([^/]+)\/?$/, '/athlete/$1');
       return local + url.search;
     }
     return path;
