@@ -205,6 +205,7 @@ function Hero({ page }: { page: AthletePage }) {
   const a = page.athlete;
   const s = page.stats;
   const [failed, setFailed] = useState(false);
+  const [videoTap, setVideoTap] = useState(0);
   const rW = s?.rightArmWins ?? a.rArmWins;
   const rL = s?.rightArmLosses ?? a.rArmLosses;
   const lW = s?.leftArmWins ?? a.lArmWins;
@@ -219,8 +220,16 @@ function Hero({ page }: { page: AthletePage }) {
 
   return (
     <View>
-      <View style={styles.photo}>
-        <Text style={styles.photoInitials}>{initialsOf(`${a.firstName ?? ''} ${a.lastName ?? ''}`)}</Text>
+      {/* Тап по фото переключает фото ↔ видео (соцсети внутри — свои кнопки, тап до фото не доходит) */}
+      <Pressable
+        style={styles.photo}
+        disabled={!page.hasVideo}
+        onPress={() => setVideoTap((n) => n + 1)}
+        accessibilityLabel="Фото или видео атлета">
+        {/* Инициалы — только без фото: у вырезанных фото прозрачный фон, буквы просвечивали бы */}
+        {!a.photoPath || failed ? (
+          <Text style={styles.photoInitials}>{initialsOf(`${a.firstName ?? ''} ${a.lastName ?? ''}`)}</Text>
+        ) : null}
         {a.photoPath && !failed ? (
           <Image
             source={wrestlerPhotoUrl(a.armWrestlerId)}
@@ -231,7 +240,7 @@ function Hero({ page }: { page: AthletePage }) {
             onError={() => setFailed(true)}
           />
         ) : null}
-        {page.hasVideo ? <IntroLoop id={a.armWrestlerId} /> : null}
+        {page.hasVideo ? <IntroLoop id={a.armWrestlerId} tap={videoTap} /> : null}
         <LinearGradient
           colors={['rgba(11,11,12,0)', 'rgba(11,11,12,0.6)', colors.bg]}
           locations={[0.35, 0.7, 1]}
@@ -247,7 +256,7 @@ function Hero({ page }: { page: AthletePage }) {
           </View>
           <AthleteSocials links={page.socials} />
         </View>
-      </View>
+      </Pressable>
 
       <View style={styles.heroBody}>
         <View style={styles.kpis}>

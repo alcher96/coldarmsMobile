@@ -1,17 +1,18 @@
 import { useEventListener } from 'expo';
 import { useFocusEffect } from 'expo-router';
 import { useVideoPlayer, VideoView, type VideoPlayer } from 'expo-video';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Animated, AppState, Platform, StyleSheet } from 'react-native';
 
 import { SITE_URL } from '@/api/http';
 
 /**
- * Видео-луп атлета поверх его фото — как на сайте (baMediaCycle): фото и видео сменяют друг
- * друга каждые `periodMs`, видео крутится по кругу. Пока видео не загрузилось, видно фото.
+ * Видео-луп атлета поверх его фото — как на сайте: фото и видео сменяют друг друга каждые
+ * `periodMs`, видео крутится по кругу. Пока видео не загрузилось, видно фото.
+ * `tap` — счётчик тапов по фото: каждый тап сразу переключает фото ↔ видео, отсчёт идёт заново.
  * Звука нет; чужую музыку не прерываем. Вне экрана и в фоне не играет.
  */
-export function IntroLoop({ id, periodMs = 7000 }: { id: string; periodMs?: number }) {
+export function IntroLoop({ id, periodMs = 7000, tap = 0 }: { id: string; periodMs?: number; tap?: number }) {
   // webm в разы легче, но AVPlayer на iOS его не умеет — там mp4.
   const format = Platform.OS === 'ios' ? 'mp4' : 'webm';
   const player = useVideoPlayer(`${SITE_URL}/api/ArmWrestler/${id}/video/file?format=${format}`, (p) => {
@@ -27,14 +28,17 @@ export function IntroLoop({ id, periodMs = 7000 }: { id: string; periodMs?: numb
   });
   const [opacity] = useState(() => new Animated.Value(0));
   const active = useActive();
-
+  // Переключатель живёт внутри эффекта цикла; тап до загрузки видео запоминается и сработает на старте.
+  const toggleRef = useRef<(() => void) | null>(null);
+  const wantVideoRef = useRef(false);
   useEffect(() => {
     if (!ready || !active) return;
     let on = false;
     let pauseTimer: ReturnType<typeof setTimeout> | undefined;
+    let tick: ReturnType<typeof setInterval> | undefined;
     const fade = (to: number) => Animated.timing(opacity, { toValue: to, duration: 600, useNativeDriver: true }).start();
-    const tick = setInterval(() => {
-      on = !on;
+    const show = (next: boolean) => {
+      on = next;
       clearTimeout(pauseTimer);
       if (on) {
         player.play();
@@ -44,14 +48,33 @@ export function IntroLoop({ id, periodMs = 7000 }: { id: string; periodMs?: numb
         // Даём фейду закончиться, потом останавливаем декодирование.
         pauseTimer = setTimeout(() => stop(player), 700);
       }
-    }, periodMs);
+    };
+    const restart = () => {
+      clearInterval(tick);
+      tick = setInterval(() => show(!on), periodMs);
+    };
+    toggleRef.current = () => {
+      show(!on);
+      restart();
+    };
+    if (wantVideoRef.current) {
+      wantVideoRef.current = false;
+      show(true);
+    }
+    restart();
     return () => {
+      toggleRef.current = null;
       clearInterval(tick);
       clearTimeout(pauseTimer);
       opacity.setValue(0);
       stop(player);
     };
   }, [ready, active, periodMs, player, opacity]);
+  useEffect(() => {
+    if (!tap) return;
+    if (toggleRef.current) toggleRef.current();
+    else wantVideoRef.current = !wantVideoRef.current;
+  }, [tap]);
 
   return (
     <Animated.View pointerEvents="none" style={[StyleSheet.absoluteFill, { opacity }]}>
