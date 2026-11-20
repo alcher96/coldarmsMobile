@@ -1,6 +1,10 @@
-// Килограммы или фунты — выбор спортсмена, один на всё приложение, хранится на телефоне. На сервер всегда уходят кг.
+// Килограммы или фунты — выбор спортсмена, один на всё приложение. Хранится в профиле на сервере (coldarms.com) — приходит
+// с силовыми и с планом тренировок; на телефоне — копия, чтобы до ответа сервера показывать как в прошлый раз.
+// Веса на сервер всегда уходят в кг.
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useSyncExternalStore } from 'react';
+
+import { saveBody } from './api';
 
 export type Unit = 'kg' | 'lb';
 const KEY = 'strength:unit';
@@ -16,10 +20,22 @@ AsyncStorage.getItem(KEY)
   })
   .catch(() => {});
 
-export function setUnit(u: Unit) {
-  unit = u;
-  subs.forEach((f) => f());
+/** Значение с сервера (не сохраняет обратно). */
+export function applyUnit(u: Unit) {
+  if (u !== 'kg' && u !== 'lb') return;
+  if (u !== unit) {
+    unit = u;
+    subs.forEach((f) => f());
+  }
   AsyncStorage.setItem(KEY, u).catch(() => {});
+}
+
+/** Выбор спортсмена: сразу на экране и в профиль на сервере. */
+export function setUnit(u: Unit) {
+  applyUnit(u);
+  saveBody({ unit: u }).catch(() => {
+    // нет связи — останется копия на телефоне, сервер узнает при следующем выборе
+  });
 }
 
 export function useUnit(): Unit {

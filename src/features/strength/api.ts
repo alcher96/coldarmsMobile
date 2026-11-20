@@ -1,8 +1,10 @@
 // Силовые: рост, вес, пол, результаты по упражнениям (правая и левая рука), видеоподтверждение, таблицы лидеров.
-// Сейчас — сервер разбора (coldarmsAI/annotator/strength.py), потом — основной бэкенд coldarms.com: при переезде
-// меняется этот файл, а не экраны. Уровень считает сервер; levelOf здесь — только подсказка до отправки.
+// Основной бэкенд coldarms.com (BlackArm, /api/strength…). Уровень считает сервер; levelOf здесь — только подсказка
+// до отправки.
 import { analysisFetch } from '@/features/analysis/api';
 import { ApiError, sendFile } from '@/features/analysis/jobs';
+
+import { applyUnit, type Unit } from './units';
 
 export type Sex = 'm' | 'f';
 export type Arm = 'right' | 'left';
@@ -26,6 +28,7 @@ export type Tendency = 'attack' | 'defense';
 export type Body = {
   sex: Sex | null; heightCm: number | null; weightKg: number | null; classIdx: number | null; name?: string;
   styles: string[]; tendency: Tendency | null;
+  unit?: Unit; // кг или фунты — выбор хранится в профиле на сервере
 };
 export type StrengthData = { standards: Standards; body: Body; results: MyResult[] };
 export type Leader = { rank: number; name: string; kg: number; level: number; me: boolean };
@@ -48,8 +51,12 @@ async function call<T>(method: string, path: string, body?: unknown, signal?: Ab
   return data as T;
 }
 
-export const getStrength = (signal?: AbortSignal) => call<StrengthData>('GET', '/api/strength', undefined, signal);
-export const saveBody = (b: { sex?: Sex; heightCm?: number; weightKg?: number; styles?: string[]; tendency?: Tendency }) =>
+export const getStrength = (signal?: AbortSignal) =>
+  call<StrengthData>('GET', '/api/strength', undefined, signal).then((d) => {
+    if (d.body?.unit) applyUnit(d.body.unit);
+    return d;
+  });
+export const saveBody = (b: { sex?: Sex; heightCm?: number; weightKg?: number; styles?: string[]; tendency?: Tendency; unit?: Unit }) =>
   call<{ body: Body; results: MyResult[] }>('PUT', '/api/strength/body', b);
 export const submitResult = (exercise: string, arm: Arm, kg: number) =>
   call<Result>('POST', '/api/strength/results', { exercise, arm, kg });

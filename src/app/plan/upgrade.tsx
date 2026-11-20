@@ -47,14 +47,16 @@ export default function Upgrade() {
   }, [analysis]);
   const [plan, setPlan] = useState<Plan | null>(null);
   const [busy, setBusy] = useState(false);
+  const [starting, setStarting] = useState(false);
   const [error, setError] = useState<string>();
   const [starts, setStarts] = useState<Record<string, number>>({});
   const first = useRef(true);
 
+  const params = (s = starts) => ({ week, months, degree, starts: s, inventory: [...gear], static: staticType });
   const run = (s = starts) => {
     setBusy(true);
     setError(undefined);
-    makePlan(analysis, week, months, degree, s, [...gear], staticType)
+    makePlan(analysis, params(s))
       .then(setPlan)
       .catch((e) => setError(userMessage(e)))
       .finally(() => setBusy(false));
@@ -88,13 +90,22 @@ export default function Upgrade() {
         }
         onStartWeight={(key, kg) => setStarts((s) => ({ ...s, [key]: kg }))}
         footer={() => (
-          <BigButton
-            label={active ? 'Начать этот план вместо текущего' : 'Начать этот план'}
-            onPress={() => {
-              startPlan(analysis, plan);
-              router.replace('/plan/track');
-            }}
-          />
+          <>
+            {error ? <Text style={styles.error}>{error}</Text> : null}
+            <BigButton
+              label={starting ? 'Сохраняю…' : active ? 'Начать этот план вместо текущего' : 'Начать этот план'}
+              onPress={() => {
+                if (starting) return;
+                // сервер строит план по тем же параметрам и сохраняет — тот же план, что на экране
+                setStarting(true);
+                setError(undefined);
+                startPlan(analysis, params())
+                  .then(() => router.replace('/plan/track'))
+                  .catch((e) => setError(userMessage(e)))
+                  .finally(() => setStarting(false));
+              }}
+            />
+          </>
         )}
       />
     );

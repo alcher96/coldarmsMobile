@@ -1,6 +1,6 @@
 import { router } from 'expo-router';
 import { useState } from 'react';
-import { Alert, Platform, Pressable, StyleSheet, Text } from 'react-native';
+import { ActivityIndicator, Alert, Platform, Pressable, StyleSheet, Text } from 'react-native';
 
 import { Segmented } from '@/components/segmented';
 import { Button, Screen } from '@/features/analysis/components/kit';
@@ -17,8 +17,15 @@ const MODES: { key: TrackMode; label: string }[] = [
 
 /** Начатый план: отметки по неделям; в режиме слежения веса следующих недель — от сделанного. */
 export default function Track() {
-  const { active, setMode, setLog, dropPlan } = usePlan();
+  const { ready, active, setMode, setLog, dropPlan } = usePlan();
   const [settings, setSettings] = useState(false);
+  if (!active && !ready) {
+    return (
+      <Screen eyebrow="План тренировок" title="Мой план">
+        <ActivityIndicator color={c.text} />
+      </Screen>
+    );
+  }
   if (!active) {
     return (
       <Screen eyebrow="План тренировок" title="Плана нет" footer={<Button label="К разборам" onPress={() => router.dismissTo('/analysis')} />}>

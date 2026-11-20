@@ -5,16 +5,10 @@ import type { AnalysisResult, DemoItem } from './types';
 import { UserError } from '@/lib/user-error';
 
 /**
- * Сервер MIRA: разбор, ColdArms Token, силовые и лидерборды — основной бэкенд coldarms.com (BlackArm). Для стенда
- * (сервер прототипа annotator/api_server.py на этом компьютере) — EXPO_PUBLIC_ANALYSIS_API=http://127.0.0.1:8058.
+ * Сервер MIRA: разбор, ColdArms Token, силовые и лидерборды, план тренировок — основной бэкенд coldarms.com (BlackArm).
+ * Для стенда (сервер прототипа annotator/api_server.py на этом компьютере) — EXPO_PUBLIC_ANALYSIS_API=http://127.0.0.1:8058.
  */
 export const API_URL = process.env.EXPO_PUBLIC_ANALYSIS_API ?? SITE_URL;
-
-/**
- * План тренировок пока считает только сервер прототипа (annotator/training/plan.py) — на основной бэкенд он ещё
- * не перенесён. Работает, пока телефон подключён к компьютеру с прототипом (adb reverse 8058).
- */
-export const PLAN_API_URL = process.env.EXPO_PUBLIC_PLAN_API ?? 'http://127.0.0.1:8058';
 
 /** Заголовки запроса от имени аккаунта: токен входа coldarms.com и ключ приложения (без ключа сайт отдаёт 404). */
 export function authHeaders(): Record<string, string> {
@@ -31,9 +25,6 @@ export async function analysisFetch(path: string, init: RequestInit = {}, base: 
   if (res.status === 401 && !init.signal?.aborted && (await refreshSession())) res = await go();
   return res;
 }
-
-/** Запрос к серверу плана тренировок (пока — прототип, см. {@link PLAN_API_URL}). */
-export const planFetch = (path: string, init: RequestInit = {}) => analysisFetch(path, init, PLAN_API_URL);
 
 /** Картинка или видео с сервера разбора (кадры для точек, видео разбора) — с теми же заголовками. */
 export const mediaSource = (path: string) => ({ uri: API_URL + path, headers: authHeaders() });
