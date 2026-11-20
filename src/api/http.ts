@@ -4,6 +4,12 @@ export const SITE_URL = 'https://coldarms.com';
 
 const TIMEOUT_MS = 10_000;
 
+/**
+ * Вход и продление ждут дольше: первый вход после простоя сервера бывает 15+ с (Keycloak на маленьком сервере
+ * вытеснен в своп и «просыпается»). С 10 с приложение говорило «нет связи», хотя вход на сервере проходил.
+ */
+export const AUTH_TIMEOUT_MS = 30_000;
+
 /** Из .env.local (EXPO_PUBLIC_CA_CLIENT_KEY); для сборок EAS — из переменных окружения EAS. */
 const CLIENT_KEY = process.env.EXPO_PUBLIC_CA_CLIENT_KEY;
 
@@ -43,9 +49,9 @@ export function setSessionExpiredHandler(fn: (() => void) | null) {
   onSessionExpired = fn;
 }
 
-async function rawFetch(path: string, init: RequestInit = {}): Promise<Response> {
+async function rawFetch(path: string, init: RequestInit = {}, timeoutMs = TIMEOUT_MS): Promise<Response> {
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
   const headers = new Headers(init.headers);
   if (!headers.has('accept')) headers.set('accept', 'application/json');
   const token = getAccessToken();
@@ -53,9 +59,6 @@ async function rawFetch(path: string, init: RequestInit = {}): Promise<Response>
   // Ключ приложения: без него сайт снаружи отдаёт 404 на всё API, кроме нужного браузеру.
   // ⚠️ Временный — перед публикацией в стор заменить на токен установки (см. TODO.md).
   if (CLIENT_KEY && !headers.has('x-ca-client')) headers.set('x-ca-client', CLIENT_KEY);
-  // Запрос из приложения: при входе сервер выдаёт долгую сессию (оффлайн-токен Keycloak) и отдаёт токен продления
-  // в теле — вход «навсегда», пока приложением пользуются (BlackArm AppClientExtensions).
-  if (!headers.has('x-ca-device')) headers.set('x-ca-device', 'app');
   // Запрос из приложения: при входе сервер выдаёт долгую сессию (оффлайн-токен Keycloak) и отдаёт токен продления
   // в теле — вход «навсегда», пока приложением пользуются (BlackArm AppClientExtensions).
   if (!headers.has('x-ca-device')) headers.set('x-ca-device', 'app');
@@ -77,7 +80,11 @@ let inflightRefresh: Promise<boolean> | null = null;
  */
 async function tryRefresh(): Promise<boolean> {
   const refresh = getRefreshToken();
-  const r = await rawFetch('/auth/refresh', { method: 'POST', headers: refresh ? { 'x-refresh-token': refresh } : {} });
+  const r = await rawFetch(
+    '/auth/refresh',
+    { method: 'POST', headers: refresh ? { 'x-refresh-token': refresh } : {} },
+    AUTH_TIMEOUT_MS,
+  );
   if (!r.ok) return false;
   if (!(await saveTokensFrom(await readJson(r)))) await dropAccessToken();
   return true;
@@ -104,11 +111,15 @@ async function readJson(r: Response): Promise<unknown> {
 }
 
 /** Запрос с продлением сессии: 401 → /auth/refresh (или тихий вход) → повтор. */
-export async function apiFetch(path: string, init?: RequestInit, { retry = true } = {}): Promise<Response> {
-  const r = await rawFetch(path, init);
+export async function apiFetch(
+  path: string,
+  init?: RequestInit,
+  { retry = true, timeoutMs = TIMEOUT_MS }: { retry?: boolean; timeoutMs?: number } = {},
+): Promise<Response> {
+  const r = await rawFetch(path, init, timeoutMs);
   if (r.status !== 401 || !retry) return r;
   if (await refreshSession()) {
-    const again = await rawFetch(path, init);
+    const again = await rawFetch(path, init, timeoutMs);
     if (again.status !== 401) return again;
   }
   onSessionExpired?.();
@@ -131,7 +142,7 @@ export async function apiGet<T>(path: string): Promise<T | null> {
 export async function apiPost<T = unknown>(
   path: string,
   body?: unknown,
-  opts?: { retry?: boolean; headers?: Record<string, string> },
+  opts?: { retry?: boolean; headers?: Record<string, string>; timeoutMs?: number },
 ): Promise<{ ok: boolean; status: number; data: T | null }> {
   const r = await apiFetch(
     path,
@@ -140,7 +151,7 @@ export async function apiPost<T = unknown>(
       headers: { ...(body === undefined ? {} : { 'content-type': 'application/json' }), ...opts?.headers },
       body: body === undefined ? undefined : JSON.stringify(body),
     },
-    { retry: opts?.retry },
+    { retry: opts?.retry, timeoutMs: opts?.timeoutMs },
   );
   return { ok: r.ok, status: r.status, data: (await readJson(r)) as T | null };
 }

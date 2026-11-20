@@ -1,4 +1,4 @@
-import { apiFetch, apiPost, parseApiJson } from './http';
+import { apiFetch, apiPost, AUTH_TIMEOUT_MS, parseApiJson } from './http';
 import { clearTokens, getRefreshToken, saveTokensFrom } from './session';
 import { UserError } from '@/lib/user-error';
 
@@ -32,7 +32,7 @@ function failure(status: number, data: unknown, fallback: string): AuthError {
 async function call<T>(path: string, body: unknown) {
   try {
     // retry: false — 401 тут значит «неверные данные», продлевать сессию бессмысленно.
-    return await apiPost<T>(path, body, { retry: false });
+    return await apiPost<T>(path, body, { retry: false, timeoutMs: AUTH_TIMEOUT_MS });
   } catch {
     throw new AuthError('Нет соединения с сервером');
   }
