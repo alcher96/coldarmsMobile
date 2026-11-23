@@ -112,13 +112,18 @@ async function call<T>(method: string, path: string, body?: unknown, signal?: Ab
 export const listJobs = (signal?: AbortSignal) => call<Job[]>('GET', '/api/jobs', undefined, signal);
 export const getJob = (id: string, signal?: AbortSignal) => call<Job>('GET', `/api/jobs/${id}`, undefined, signal);
 
-/** Окно разбора с сервера (там же отладочное «всегда открыто / закрыто»); нет связи — по часам телефона. */
-export async function getSchedule(signal?: AbortSignal): Promise<{ open: boolean; changeInS: number }> {
+/**
+ * Окно разбора с сервера (там же отладочное «всегда открыто / закрыто») и на связи ли MIRA: online = false — движок
+ * разбора не отзывается (рабочий выключен или компьютер спит), разбор только в очередь. Нет связи с сервером — окно по
+ * часам телефона, MIRA считаем на связи (как раньше).
+ */
+export async function getSchedule(signal?: AbortSignal): Promise<{ open: boolean; changeInS: number; online: boolean }> {
   try {
-    return await call<{ open: boolean; changeInS: number }>('GET', '/api/schedule', undefined, signal);
+    const s = await call<{ open: boolean; changeInS: number; online?: boolean }>('GET', '/api/schedule', undefined, signal);
+    return { ...s, online: s.online !== false };
   } catch {
     const s = schedule();
-    return { open: s.open, changeInS: Math.round(s.left * 60) };
+    return { open: s.open, changeInS: Math.round(s.left * 60), online: true };
   }
 }
 

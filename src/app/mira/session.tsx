@@ -412,6 +412,12 @@ export default function Session() {
         setPhase('queued');
         return say(REAL.sleeping(inS));
       };
+      // окно открыто, но движок разбора не отзывается (рабочий выключен): видео в очереди, когда начнётся — неизвестно
+      const offlineNow = () => {
+        setAsleep(true);
+        setPhase('queued');
+        return say(REAL.offline);
+      };
       // «продолжить к разбору»: видео встаёт в очередь, сервер списывает токен (сбой расчёта — вернёт; отмена — нет).
       // Не хватает (402) — шторка пополнения; купил — отправляем снова; закрыл — разбор ждёт в «Моих разборах».
       // Другие ошибки (связь) — как раньше: ответ дошлётся позже, сервер спросит «продолжить» ещё раз.
@@ -468,9 +474,22 @@ export default function Session() {
         have.go = 'yes';
         return sendGo(lj, 'yes');
       };
-      const precheckFirst = sch.open && !have.go;
+      // MIRA работает: окно открыто и движок разбора на связи. Нет — как вне окна: вопросы сейчас, видео в очередь
+      let awake = sch.open && sch.online;
+      const precheckFirst = awake && !have.go;
       let askedNow = precheckFirst; // спортсмен отвечал сейчас — сказать, сколько ждать
-      await say(jobParam ? REAL.resume : precheckFirst ? REAL.openIntro : sch.open ? LINES.loaded : REAL.closedIntro, !uploaded);
+      await say(
+        jobParam
+          ? REAL.resume
+          : precheckFirst
+            ? REAL.openIntro
+            : awake
+              ? LINES.loaded
+              : sch.open
+                ? REAL.offlineIntro
+                : REAL.closedIntro,
+        !uploaded,
+      );
       await playIntro();
       if (precheckFirst) {
         // сначала видео целиком на сервере и оценка качества, только потом вопросы про схватку
@@ -483,22 +502,32 @@ export default function Session() {
         await say(REAL.checking);
         setStep('Проверяю качество видео');
         let j0: Job | null = null;
-        while (alive) {
+        for (let tick = 0; alive; tick++) {
           try {
             j0 = await getJob(lj0.id, signal);
           } catch {
             j0 = null;
           }
           if (j0 && (j0.precheck || j0.state === 'failed' || j0.state === 'cancelled')) break;
+          // раз в ~10 с — на связи ли MIRA: рабочий пропал — не ждать оценку впустую, а поставить в очередь
+          if (tick % 4 === 3 && !(await getSchedule(signal)).online) {
+            awake = false;
+            break;
+          }
           await sleep(2500);
         }
-        if (!alive || !j0) return;
-        if (j0.state === 'failed' || j0.state === 'cancelled') {
-          await saveLocalJob({ ...lj0, state: j0.state });
-          setFailed(j0.error ?? REAL.failed);
-          return;
+        if (!alive) return;
+        if (!awake) {
+          await say(REAL.wentOffline);
+        } else {
+          if (!j0) return;
+          if (j0.state === 'failed' || j0.state === 'cancelled') {
+            await saveLocalJob({ ...lj0, state: j0.state });
+            setFailed(j0.error ?? REAL.failed);
+            return;
+          }
+          if (!(await goStep(lj0, j0))) return;
         }
-        if (!(await goStep(lj0, j0))) return;
       }
       for (const q of [Q_SIDE, Q_RESULT, Q_TECHNIQUE, Q_WRIST, Q_FATIGUE]) {
         if (have[q.key]) {
@@ -518,7 +547,7 @@ export default function Session() {
         return;
       }
       // вне окна разбора оценку видео спортсмен не видел: считаем, если она нормальная, иначе спросим по ходу
-      if (!have.go && !sch.open) have.go = 'auto';
+      if (!have.go && !awake) have.go = 'auto';
       // ответы точно на сервере (если какой-то не дошёл из-за связи); «продолжить» — отдельно: оно стоит токен
       const { go: goNow, ...rest } = have;
       await sendAnswers(lj.id, rest, signal).catch(() => {});
@@ -533,8 +562,8 @@ export default function Session() {
         return;
       }
       if (!alive) return;
-      if (!sch.open && !jobParam) {
-        await sleepNow(sch.changeInS);
+      if (!awake && !jobParam) {
+        await (sch.open ? offlineNow() : sleepNow(sch.changeInS));
         return;
       }
       {
@@ -542,6 +571,11 @@ export default function Session() {
         if (!alive) return;
         if (j1?.state === 'queued' && j1.window && !j1.window.open) {
           await sleepNow(j1.window.opensInS ?? sch.changeInS);
+          return;
+        }
+        // вернулись к разбору в очереди, а MIRA не на связи — не показывать «разбираю» впустую
+        if (j1?.state === 'queued' && !(await getSchedule(signal)).online) {
+          await offlineNow();
           return;
         }
         const dur = resumed ? 0 : draft.trim ? draft.trim[1] - draft.trim[0] : (draft.videoDuration ?? 20);
