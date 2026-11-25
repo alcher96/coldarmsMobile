@@ -12,6 +12,7 @@ import type { AnalysisResult } from '@/features/analysis/types';
 import { colors, fonts, radii } from '@/theme/tokens';
 import { VIDEO_FILL } from '@/features/analysis/video-size';
 import { UserError, userMessage } from '@/lib/user-error';
+import { usePlan } from '@/features/plan/store';
 
 /** Разбор: видео + бейджи, ход схватки с перемоткой, главная причина, тактика эксперта, полный текст. */
 export default function ResultScreen() {
@@ -50,6 +51,7 @@ export default function ResultScreen() {
 }
 
 function Body({ r }: { r: AnalysisResult }) {
+  const { active } = usePlan();
   const player = useVideoPlayer(videoSource(r), (p) => {
     p.muted = true;
   });
@@ -135,7 +137,12 @@ function Body({ r }: { r: AnalysisResult }) {
         </Text>
       </Card>
 
-      <Button label="Улучшить мой план" onPress={() => router.push(`/plan/upgrade?analysis=${encodeURIComponent(r.id)}`)} />
+      {/* план по этому разбору уже начат — улучшать по нему снова нельзя (эксперт, 2026-11-25): только к начатому плану */}
+      {active?.analysis === r.id ? (
+        <Button label="Мой план тренировок" onPress={() => router.push('/plan/track')} />
+      ) : (
+        <Button label="Улучшить мой план" onPress={() => router.push(`/plan/upgrade?analysis=${encodeURIComponent(r.id)}`)} />
+      )}
     </>
   );
 }

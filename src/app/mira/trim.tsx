@@ -7,7 +7,7 @@ import { router } from 'expo-router';
 import { useEvent } from 'expo';
 import { useVideoPlayer, VideoView, type VideoThumbnail } from 'expo-video';
 import { Pause, Play } from 'lucide-react-native';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState, type ComponentRef } from 'react';
 import { PanResponder, Platform, Pressable, StyleSheet, Text, View, type LayoutChangeEvent } from 'react-native';
 
 import { useAnalysisDraft } from '@/features/analysis/draft';
@@ -42,6 +42,13 @@ export default function TrimScreen() {
   const [width, setWidth] = useState(0);
   const rangeRef = useRef(range);
   rangeRef.current = range;
+  // где бегунок после перемотки: на паузе плеер новое время не присылает — без этого бегунок «возвращался» назад
+  const [seekT, setSeekT] = useState<number | null>(null);
+  const [dragging, setDragging] = useState(false);   // тянут ручку или ленту — страница не прокручивается
+  // лента: координата пальца — от левого края ленты (locationX — от кадра под пальцем, отсюда дёрганье)
+  const stripRef = useRef<ComponentRef<typeof View>>(null);
+  const stripX = useRef(0);
+  const measureStrip = () => stripRef.current?.measureInWindow((x: number) => { stripX.current = x; });
 
   // длина видео — из выбора в галерее, а если её нет — у плеера, когда он загрузил видео
   useEffect(() => {
@@ -71,10 +78,14 @@ export default function TrimScreen() {
     PanResponder.create({
       onStartShouldSetPanResponder: () => true,
       onMoveShouldSetPanResponder: () => true,
+      onPanResponderTerminationRequest: () => false,
       onPanResponderGrant: () => {
         player.pause();
+        setDragging(true);
         startX.current = toX(rangeRef.current[which]);
       },
+      onPanResponderRelease: () => setDragging(false),
+      onPanResponderTerminate: () => setDragging(false),
       onPanResponderMove: (_, g) => {
         const t = toT(startX.current + g.dx);
         const [a, b] = rangeRef.current;
@@ -83,6 +94,7 @@ export default function TrimScreen() {
         next[1] = Math.min(duration, next[1]);
         setRange(next);
         player.currentTime = next[which];
+        setSeekT(next[which]);
       },
     });
   const startX = useRef(0);
@@ -94,22 +106,36 @@ export default function TrimScreen() {
       PanResponder.create({
         onStartShouldSetPanResponder: () => true,
         onMoveShouldSetPanResponder: () => true,
+        onPanResponderTerminationRequest: () => false,
         onPanResponderGrant: (e) => {
           player.pause();
-          seekTo(e.nativeEvent.locationX);
+          setDragging(true);
+          measureStrip();
+          seekTo(e.nativeEvent.pageX - stripX.current);
         },
-        onPanResponderMove: (e) => seekTo(e.nativeEvent.locationX),
+        onPanResponderMove: (e) => seekTo(e.nativeEvent.pageX - stripX.current),
+        onPanResponderRelease: () => setDragging(false),
+        onPanResponderTerminate: () => setDragging(false),
       }),
     [width, duration], // eslint-disable-line react-hooks/exhaustive-deps
   );
   const seekTo = (x: number) => {
     const [a, b] = rangeRef.current;
-    player.currentTime = Math.max(a, Math.min(b, toT(x)));
+    const t = Math.max(a, Math.min(b, toT(x)));
+    player.currentTime = t;
+    setSeekT(t);
   };
 
+  // текущее время: пока играет — от плеера, на паузе — куда перемотали
+  const cur = isPlaying || seekT === null ? time.currentTime : seekT;
   const toggle = () => {
-    if (isPlaying) return player.pause();
-    if (time.currentTime < range[0] || time.currentTime >= range[1] - 0.05) player.currentTime = range[0];
+    if (isPlaying) {
+      setSeekT(time.currentTime);
+      return player.pause();
+    }
+    if (cur < range[0] || cur >= range[1] - 0.05) player.currentTime = range[0];
+    else player.currentTime = cur;
+    setSeekT(null);
     player.play();
   };
 
@@ -120,21 +146,19 @@ export default function TrimScreen() {
   };
 
   const len = range[1] - range[0];
-  const head = toX(Math.max(range[0], Math.min(range[1], time.currentTime)));
+  const head = toX(Math.max(range[0], Math.min(range[1], cur)));
   const vertical = (draft.videoRatio ?? 16 / 9) < 0.9;
 
   return (
     <Screen
-      eyebrow="Загрузить схватку"
-      title="Оставь только схватку"
+      eyebrow="Оставь только схватку"
+      scrollEnabled={!dragging}
       footer={
         <View style={{ gap: 8 }}>
           <Button label={whole ? 'Отправить всё видео' : `Готово · ${fmt(len)}`} onPress={done} disabled={!duration} />
         </View>
       }>
-      <Text style={styles.hint}>
-        Убери подготовку, разговоры и повторы — так видео отправится быстрее, а разбор будет точнее.
-      </Text>
+      <Text style={styles.hint}>Убери подготовку, разговоры и повторы — видео отправится быстрее, разбор будет точнее.</Text>
 
       <Pressable style={[styles.video, { height: vertical ? 420 : 230 }]} onPress={toggle}>
         <VideoView player={player} style={VIDEO_FILL} contentFit="contain" nativeControls={false} />
@@ -157,7 +181,10 @@ export default function TrimScreen() {
       </View>
 
       {/* лента кадров с выделением */}
-      <View style={styles.strip} onLayout={(e: LayoutChangeEvent) => setWidth(e.nativeEvent.layout.width)}>
+      <View ref={stripRef} style={styles.strip} onLayout={(e: LayoutChangeEvent) => {
+        setWidth(e.nativeEvent.layout.width);
+        measureStrip();
+      }}>
         <View style={styles.thumbs} {...panScrub.panHandlers}>
           {Array.from({ length: THUMBS }, (_, i) => (
             <View key={i} style={styles.thumbBox}>
@@ -201,7 +228,7 @@ const fmt = (t: number) => {
 
 const STRIP_H = 56;
 const styles = StyleSheet.create({
-  hint: { fontFamily: fonts.body, fontSize: 13, lineHeight: 19, color: colors.textMuted, marginTop: -8 },
+  hint: { fontFamily: fonts.body, fontSize: 13, lineHeight: 19, color: colors.textMuted },
   video: { borderRadius: radii.card, overflow: 'hidden', backgroundColor: '#000', alignItems: 'center', justifyContent: 'center' },
   play: {
     position: 'absolute',

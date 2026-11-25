@@ -73,6 +73,15 @@ export default function Upgrade() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [starts]);
 
+  if (active?.analysis === analysis) {
+    return (
+      <Screen eyebrow="План тренировок" title="План уже начат"
+        footer={<Button label="Мой план тренировок" onPress={() => router.replace('/plan/track')} />}>
+        <Text style={styles.lead}>По этому разбору план уже скорректирован и идёт. Новый план — по следующему разбору.</Text>
+      </Screen>
+    );
+  }
+
   if (plan) {
     return (
       <PlanView

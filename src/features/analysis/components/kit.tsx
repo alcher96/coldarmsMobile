@@ -14,12 +14,16 @@ export function Screen({
   back = true,
   footer,
   children,
+  scrollEnabled = true,
 }: {
   eyebrow: string;
-  title: string;
+  /** крупный заголовок; нет — только надпись над содержимым (экран обрезки: полоса должна быть видна без прокрутки) */
+  title?: string;
   back?: boolean;
   footer?: ReactNode;
   children: ReactNode;
+  /** false — пока тянут жестом (ручки обрезки), страница не перехватывает палец */
+  scrollEnabled?: boolean;
 }) {
   return (
     <SafeAreaView style={styles.root} edges={['top', 'bottom']}>
@@ -35,9 +39,9 @@ export function Screen({
           </View>
         )}
       </View>
-      <ScrollView contentContainerStyle={styles.body}>
+      <ScrollView contentContainerStyle={styles.body} scrollEnabled={scrollEnabled}>
         <Eyebrow>{eyebrow}</Eyebrow>
-        <Text style={styles.title}>{title}</Text>
+        {title ? <Text style={styles.title}>{title}</Text> : null}
         <View style={styles.content}>{children}</View>
       </ScrollView>
       {footer ? <View style={styles.footer}>{footer}</View> : null}

@@ -162,7 +162,12 @@ export default function Session() {
   // высота кадра — не больше трети экрана, чтобы оставался диалог; ширина — вся (у вертикального видео «cover»
   // обрезает верх и низ, половины «слева / справа» по-прежнему настоящие)
   const { height: screenH, width: screenW } = useWindowDimensions();
-  const videoBox = { height: Math.round(Math.min(vertical ? 320 : 200, screenH * (vertical ? 0.32 : 0.26))) };
+  // вертикальное видео — окно по пропорциям кадра, по центру: раньше окно было во всю ширину, а видео растягивалось на
+  // него (cover) — от вертикального кадра оставалась полоса посередине (эксперт, 2026-11-25)
+  const boxH = Math.round(Math.min(vertical ? 360 : 200, screenH * (vertical ? 0.36 : 0.26)));
+  const videoBox = vertical
+    ? { height: boxH, width: Math.round(boxH * videoRatio), alignSelf: 'center' as const, marginHorizontal: 0 }
+    : { height: boxH };
   const player = useVideoPlayer(null, (p) => {
     p.muted = true;
   });
@@ -897,7 +902,8 @@ export default function Session() {
         ) : null}
       </View>
 
-      {real && sideQ && local ? (
+      {/* точки — для пары борцов в измерениях; в быстром разборе измерений нет — сторона только тапом по кадру */}
+      {real && sideQ && local && tier !== 'fast' ? (
         // доп. настройка: если кто-то закрывает борцов — отметить себя и соперника точками
         <Pressable style={styles.pointsTab} onPress={() => setPointsOpen(true)}>
           <Crosshair size={16} color={mira.ind} strokeWidth={1.8} />
