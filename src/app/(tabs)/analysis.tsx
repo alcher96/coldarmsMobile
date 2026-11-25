@@ -15,7 +15,11 @@ import { mira } from '@/features/analysis/components/mira';
 import { MONO } from '@/features/analysis/components/mira-button';
 import { MiraHud } from '@/features/analysis/components/mira-hud';
 import { DUSK, SEA } from '@/features/analysis/components/mira-theme';
+import { TierSheet } from '@/features/analysis/components/tier-sheet';
+import { useAnalysisDraft } from '@/features/analysis/draft';
 import { cleanupLocalVideos, deleteJob, listJobs, stateLabel, type Job } from '@/features/analysis/jobs';
+import { usePickVideo } from '@/features/analysis/pick';
+import type { Tier } from '@/features/analysis/types';
 import { useSchedule } from '@/features/analysis/use-schedule';
 import { usePlan } from '@/features/plan/store';
 import { getStrength } from '@/features/strength/api';
@@ -75,10 +79,21 @@ export default function AnalysisHub() {
       return () => ac.abort();
     }, [load, refreshTokens]),
   );
-  // новый разбор: сначала стиль борьбы и манера (MIRA учитывает их в тактике), потом токен (не хватает — пополнение)
+  // новый разбор: сначала стиль борьбы и манера (MIRA учитывает их в тактике), потом токен (не хватает — пополнение),
+  // потом уровень разбора (шторка: быстрый / средний / продвинутый и сколько ждать сейчас)
   const [styleGate, setStyleGate] = useState(false);
+  const [tierOpen, setTierOpen] = useState(false);
+  const draft = useAnalysisDraft();
+  const pickVideo = usePickVideo();
   const afterStyle = () => {
     if (tok.data && tok.data.balance < tok.data.cost) setTopUp('start');
+    else setTierOpen(true);
+  };
+  // быстрый — сразу к видео (окно разбора ему не нужно); продвинутый — через экран окна разбора и очереди
+  const onTier = (t: Tier) => {
+    setTierOpen(false);
+    draft.setAnswer('tier', t);
+    if (t === 'fast') pickVideo();
     else router.push('/mira/schedule');
   };
   const startNew = async () => {
@@ -223,7 +238,8 @@ export default function AnalysisHub() {
         onDone={() => { setStyleGate(false); afterStyle(); }} />
       <TopUpSheet visible={topUp !== null} onClose={() => setTopUp(null)} accent={SEA.sea} onAccent={SEA.onSea}
         reason={topUp === 'start' ? 'Для нового разбора нужен 1 токен.' : undefined}
-        onBought={() => topUp === 'start' && router.push('/mira/schedule')} />
+        onBought={() => topUp === 'start' && setTierOpen(true)} />
+      <TierSheet visible={tierOpen} onClose={() => setTierOpen(false)} onPick={onTier} />
         </>
       )}
     </GlassHeaderScreen>

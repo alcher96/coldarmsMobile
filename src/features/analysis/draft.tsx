@@ -56,7 +56,8 @@ export function AnalysisDraftProvider({ children }: { children: ReactNode }) {
       setVideoBytes(undefined);
       setVideoDuration(undefined);
       setTrim(undefined);
-      setAnswers({ result: 'loss' });
+      // уровень выбирают до видео (экран «Новый разбор») — новое видео его не сбрасывает
+      setAnswers((a) => ({ result: 'loss', ...(a.tier ? { tier: a.tier } : {}) }));
     },
   };
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;

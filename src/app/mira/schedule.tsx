@@ -14,7 +14,9 @@ import { mira } from '@/features/analysis/components/mira';
 import type { CyberState } from '@/features/analysis/components/cyber-eyes';
 import { MiraHud } from '@/features/analysis/components/mira-hud';
 import { DUSK, SEA } from '@/features/analysis/components/mira-theme';
+import { useAnalysisDraft } from '@/features/analysis/draft';
 import { usePickVideo } from '@/features/analysis/pick';
+import type { Tier } from '@/features/analysis/types';
 import { hhmm, localOffset, localWindow, zoneRows } from '@/features/analysis/schedule';
 import { useSchedule } from '@/features/analysis/use-schedule';
 
@@ -28,6 +30,14 @@ export default function MiraScreen() {
   const now = S.now;
   const [w, setW] = useState(0);
   const pick = usePickVideo();
+  // уровень выбран в шторке «Новый разбор»; сюда приходят с продвинутым (быстрому окно не нужно) или «другое видео»
+  const draft = useAnalysisDraft();
+  const tier: Tier = draft.answers.tier ?? 'advanced';
+  const pickVideo = () => {
+    if (!draft.answers.tier) draft.setAnswer('tier', tier);
+    pick();
+  };
+  const now_ = S.open || tier === 'fast';   // разбор начнётся сразу (если MIRA на связи)
 
   // сценарий взгляда MIRA, пока не спит
   const [st, setSt] = useState<CyberState>('attention');
@@ -165,13 +175,13 @@ export default function MiraScreen() {
           </Text>
         </View>
       </ScrollView>
-      {/* выбор видео → обрезка → разговор с MIRA; вне окна разбора видео встанет в очередь */}
+      {/* уровень → выбор видео → обрезка → разговор с MIRA; продвинутый вне окна разбора встанет в очередь */}
       <View style={styles.footer}>
-        <Pressable onPress={pick} style={({ pressed }) => [styles.cta, pressed && styles.ctaPressed]}>
+        <Pressable onPress={pickVideo} style={({ pressed }) => [styles.cta, pressed && styles.ctaPressed]}>
           <Upload size={18} color={SEA.onSea} strokeWidth={2} />
-          <Text style={styles.ctaText}>{S.open ? 'Выбрать видео' : 'Выбрать видео в очередь'}</Text>
+          <Text style={styles.ctaText}>{now_ ? 'Выбрать видео' : 'Выбрать видео в очередь'}</Text>
         </Pressable>
-        {S.open ? null : <Text style={styles.ctaNote}>Разбор начнётся в 21:00 МСК — MIRA пришлёт уведомление</Text>}
+        {now_ ? null : <Text style={styles.ctaNote}>Разбор начнётся в 21:00 МСК — MIRA пришлёт уведомление</Text>}
       </View>
     </SafeAreaView>
   );

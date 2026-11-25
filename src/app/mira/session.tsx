@@ -47,7 +47,7 @@ import {
   kingsQuestions,
   type Question,
 } from '@/features/analysis/script';
-import type { AnalysisResult, Answers, KingsQuestion, Quality } from '@/features/analysis/types';
+import type { AnalysisResult, Answers, KingsQuestion, Quality, Tier } from '@/features/analysis/types';
 import { TopUpSheet } from '@/features/tokens/top-up-sheet';
 import { VIDEO_FILL } from '@/features/analysis/video-size';
 import {
@@ -138,6 +138,10 @@ export default function Session() {
   // доп. настройка «где я, где соперник» точками на трёх кадрах (вкладка под видео, пока MIRA спрашивает «где ты»)
   const [pointsOpen, setPointsOpen] = useState(false);
   const [pointsErr, setPointsErr] = useState<string>();
+  const [pointsClosed, setPointsClosed] = useState(false);   // закрыл открытую сама отметку — дальше только по вкладке
+  // уровень разбора: продвинутый — пара борцов по точкам спортсмена (автоматика ошибается в 9 роликах из 29), поэтому
+  // «где ты» — только точками; быстрый — без видеокарты и окна разбора
+  const [tier, setTier] = useState<Tier>(draft.answers.tier ?? 'advanced');
   const [asleep, setAsleep] = useState(false); // вне окна разбора: видео в очереди, MIRA спит
   const [extraQ, setExtraQ] = useState(0); // вопросы сервера по ходу расчёта (кингсмув, центр)
   useEffect(() => {
@@ -403,10 +407,20 @@ export default function Session() {
       const have: Answers = { ...(job?.answers ?? {}) };
       // ответ — на сервер, как только есть задача; не дошёл — повторим перед расчётом
       const post = (a: Partial<Answers>) => ready.then((lj) => lj && sendAnswers(lj.id, a, signal)).catch(() => {});
+      // уровень — первым ответом: от него зависит, считать ли на видеокарте и ждать ли окна разбора
+      // (вернулись к старому разбору без уровня — он продвинутый, сервер уровень после «продолжить» не меняет)
+      if (!have.tier && !jobParam) {
+        have.tier = draft.answers.tier ?? 'advanced';
+        void post({ tier: have.tier });
+      }
+      setTier(have.tier ?? 'advanced');
+      const fast = have.tier === 'fast';
       // окно разбора 21:00–06:00 МСК: открыто — сначала оценка видео, «Продолжить», затем вопросы про схватку;
       // закрыто — вопросы, пока видео грузится, и очередь (оценку покажем по ходу, если она плохая)
-      const sch = await getSchedule(signal);
+      const sch0 = await getSchedule(signal);
       if (!alive) return;
+      // быстрому разбору окно не нужно — для него разбор «открыт» всегда, лишь бы MIRA была на связи
+      const sch = fast ? { ...sch0, open: true } : sch0;
       const sleepNow = (inS: number) => {
         setAsleep(true);
         setPhase('queued');
@@ -579,7 +593,7 @@ export default function Session() {
           return;
         }
         const dur = resumed ? 0 : draft.trim ? draft.trim[1] - draft.trim[0] : (draft.videoDuration ?? 20);
-        const eta = j1?.etaS ?? 97 + 13.7 * (dur || 20);
+        const eta = j1?.etaS ?? (fast ? 70 + 1.1 * (dur || 20) : 97 + 13.7 * (dur || 20));
         if (!jobParam || askedNow) await say(REAL.eta(Math.max(2, Math.round(eta / 60))));
       }
       setPhase('analyze');
@@ -769,6 +783,9 @@ export default function Session() {
   const totalQ = 4 + (real ? extraQ : (meta?.kingsQuestions.length ?? 0));
   const prog = [u, (answered / totalQ) * 100, phase === 'analyze' || phase === 'done' ? w : 0, done ? 100 : 0];
   const sideQ = question?.tapOnVideo;
+  const needPoints = real && tier === 'advanced';
+  // продвинутый разбор: на вопросе «где ты» сразу открыть отметку точками (кнопок «слева / справа» нет)
+  const showPoints = pointsOpen || (!!(sideQ && needPoints && local) && !pointsClosed);
   // точки отправлены → сторона известна по ним (точка «я» левее точки соперника на среднем кадре) — ответ на «где ты»
   const pointsDone = async (taps: Tap[]) => {
     if (!local) return;
@@ -860,7 +877,7 @@ export default function Session() {
             <Text style={styles.stepText}>{w}%</Text>
           </View>
         ) : null}
-        {sideQ ? (
+        {sideQ && !needPoints ? (
           <Rise style={styles.halves}>
             {question!.options.map((o, i) => (
               <Pressable
@@ -886,7 +903,9 @@ export default function Session() {
           <Crosshair size={16} color={mira.ind} strokeWidth={1.8} />
           <View style={{ flex: 1 }}>
             <Text style={styles.pointsTabText}>Отметить себя и соперника точками</Text>
-            <Text style={styles.pointsTabSub}>если кто-то или что-то закрывает борцов</Text>
+            <Text style={styles.pointsTabSub}>
+              {needPoints ? 'для продвинутого разбора — на трёх кадрах' : 'если кто-то или что-то закрывает борцов'}
+            </Text>
           </View>
           <ChevronRight size={16} color={mira.muted} strokeWidth={1.8} />
         </Pressable>
@@ -944,7 +963,7 @@ export default function Session() {
       <View style={styles.bottom}>
         {sideQ ? (
           <Rise style={styles.hint}>
-            <Text style={styles.hintText}>Тапни на себя в кадре ↑</Text>
+            <Text style={styles.hintText}>{needPoints ? 'Отметь себя и соперника точками ↓' : 'Тапни на себя в кадре ↑'}</Text>
           </Rise>
         ) : null}
         {opts.length ? (
@@ -1024,9 +1043,9 @@ export default function Session() {
             setAim(false);
           }} />
       ) : null}
-      {pointsOpen && local ? (
+      {showPoints && local ? (
         <PointsSheet jobId={local.id} error={pointsErr} onDone={pointsDone}
-          onClose={() => { setPointsOpen(false); setPointsErr(undefined); }} />
+          onClose={() => { setPointsOpen(false); setPointsClosed(true); setPointsErr(undefined); }} />
       ) : null}
     </View>
   );

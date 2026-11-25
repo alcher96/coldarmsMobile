@@ -25,7 +25,10 @@ export type Answers = {
   go?: 'yes' | 'auto' | 'other';
   /** доп. настройки: спортсмен отметил точками себя и соперника на трёх кадрах */
   points?: 'yes';
+  /** уровень разбора: fast — только модель по видео, в любое время; advanced — с измерениями, ночью, точки обязательны */
+  tier?: Tier;
 };
+export type Tier = 'fast' | 'advanced';
 export type KingsQuestion = 'kingsMe' | 'kingsOpp';
 
 export type Claim = { text: string; aspect: string };
