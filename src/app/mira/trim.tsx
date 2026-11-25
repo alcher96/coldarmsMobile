@@ -11,6 +11,7 @@ import { useEffect, useMemo, useRef, useState, type ComponentRef } from 'react';
 import { PanResponder, Platform, Pressable, StyleSheet, Text, View, type LayoutChangeEvent } from 'react-native';
 
 import { useAnalysisDraft } from '@/features/analysis/draft';
+import { TierSheet } from '@/features/analysis/components/tier-sheet';
 import { Button, Screen } from '@/features/analysis/components/kit';
 import { VIDEO_FILL } from '@/features/analysis/video-size';
 import { colors, fonts, radii } from '@/theme/tokens';
@@ -140,9 +141,12 @@ export default function TrimScreen() {
   };
 
   const whole = duration > 0 && range[0] <= 0.05 && range[1] >= duration - 0.05;
+  // «Готово» → уровень разбора (быстрый / продвинутый); выбор уровня — оплата: токен спишется в начале загрузки
+  const [tierOpen, setTierOpen] = useState(false);
   const done = () => {
+    player.pause();
     draft.setTrim(whole ? undefined : [Math.round(range[0] * 100) / 100, Math.round(range[1] * 100) / 100]);
-    router.replace('/mira/session');
+    setTierOpen(true);
   };
 
   const len = range[1] - range[0];
@@ -215,6 +219,12 @@ export default function TrimScreen() {
       <Pressable onPress={() => setRange([0, duration])} disabled={whole}>
         <Text style={[styles.reset, whole && { opacity: 0.4 }]}>Вернуть всё видео</Text>
       </Pressable>
+      <TierSheet visible={tierOpen} onClose={() => setTierOpen(false)}
+        onPick={(t) => {
+          setTierOpen(false);
+          draft.setAnswer('tier', t);
+          router.replace('/mira/session');
+        }} />
     </Screen>
   );
 }

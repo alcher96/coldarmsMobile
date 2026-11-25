@@ -31,7 +31,7 @@ export function QualityModal({ q, onGo, onOther }: { q: Quality; onGo: () => voi
             <Text style={styles.goText}>Продолжить к разбору</Text>
           </Pressable>
           <Pressable onPress={onOther} style={({ pressed }) => [styles.other, pressed && { backgroundColor: '#1E1E23' }]}>
-            <Text style={styles.otherText}>Загрузить другое видео</Text>
+            <Text style={styles.otherText}>Другое видео — новый разбор и токен</Text>
           </Pressable>
         </View>
       </View>

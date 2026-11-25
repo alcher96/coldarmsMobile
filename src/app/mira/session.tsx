@@ -369,6 +369,35 @@ export default function Session() {
       // сервер), создаёт задачу и отправляет видео кусками
       let upError: string | undefined;
       let prepShare = 0; // доля полосы «Видео», отведённая под сжатие
+      // оплата — выбор уровня (эксперт, 2026-11-25): токен списывается, как только задача создана, ДО загрузки видео.
+      // Не хватает (402) — шторка пополнения; купил — платим снова; отказался — задачу удаляем, видео не отправляем.
+      // Повтор с тем же уровнем второй токен не спишет (сервер платит за разбор один раз).
+      const payTier = async (lj: LocalJob): Promise<boolean> => {
+        const tier = draft.answers.tier ?? 'advanced';
+        for (;;) {
+          try {
+            await retryWhileOffline(() => sendAnswers(lj.id, { tier }, signal), signal, (w) => alive && setOffline(w));
+            return true;
+          } catch (e) {
+            if (!(e instanceof ApiError && e.status === 402)) throw e;
+          }
+          if (!alive) return false;
+          player.pause();
+          await say(REAL.needToken);
+          const bought = await new Promise<boolean>((res) => {
+            tokRes.current = res;
+            setNeedTok(true);
+          });
+          setNeedTok(false);
+          if (!alive) return false;
+          if (!bought) {
+            await cancelJob(lj.id).catch(() => {});
+            upError = REAL.noTokenUpload;
+            return false;
+          }
+          await say(REAL.gotToken);
+        }
+      };
       const ready: Promise<LocalJob | null> = resumed
         ? Promise.resolve(resumed)
         : (async () => {
@@ -388,6 +417,7 @@ export default function Session() {
             const nl = await retryWhileOffline(
               () => createJob(uri, bytes, draft.videoName, draft.videoRatio, trim, signal), signal, (w) => alive && setOffline(w),
             );
+            if (!(await payTier(nl))) return null;
             if (alive) setLocal(nl);
             return nl;
           })().catch((e) => {
@@ -412,12 +442,8 @@ export default function Session() {
       const have: Answers = { ...(job?.answers ?? {}) };
       // ответ — на сервер, как только есть задача; не дошёл — повторим перед расчётом
       const post = (a: Partial<Answers>) => ready.then((lj) => lj && sendAnswers(lj.id, a, signal)).catch(() => {});
-      // уровень — первым ответом: от него зависит, считать ли на видеокарте и ждать ли окна разбора
-      // (вернулись к старому разбору без уровня — он продвинутый, сервер уровень после «продолжить» не меняет)
-      if (!have.tier && !jobParam) {
-        have.tier = draft.answers.tier ?? 'advanced';
-        void post({ tier: have.tier });
-      }
+      // уровень оплачен при создании задачи (payTier); вернулись к старому разбору без уровня — он продвинутый
+      if (!have.tier && !jobParam) have.tier = draft.answers.tier ?? 'advanced';
       setTier(have.tier ?? 'advanced');
       const fast = have.tier === 'fast';
       // окно разбора 21:00–06:00 МСК: открыто — сначала оценка видео, «Продолжить», затем вопросы про схватку;
@@ -485,9 +511,10 @@ export default function Session() {
         }
         if (!a || !alive) return false;
         if (a.key !== 'yes') {
-          // «Загрузить другое видео»: разбор удаляется — сервер останавливает расчёт и стирает видео
+          // «Загрузить другое видео»: разбор удаляется — сервер останавливает расчёт и стирает видео. Токен не
+          // возвращается: другое видео — новый разбор и новый токен (эксперт, 2026-11-25)
           await cancelJob(lj.id).catch(() => {});
-          router.replace('/mira/schedule');
+          router.dismissTo('/analysis');
           return false;
         }
         have.go = 'yes';

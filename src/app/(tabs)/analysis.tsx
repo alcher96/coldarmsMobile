@@ -15,11 +15,9 @@ import { mira } from '@/features/analysis/components/mira';
 import { MONO } from '@/features/analysis/components/mira-button';
 import { MiraHud } from '@/features/analysis/components/mira-hud';
 import { DUSK, SEA } from '@/features/analysis/components/mira-theme';
-import { TierSheet } from '@/features/analysis/components/tier-sheet';
-import { useAnalysisDraft } from '@/features/analysis/draft';
+import { VideoTipsModal } from '@/features/analysis/components/video-tips-modal';
 import { cleanupLocalVideos, deleteJob, listJobs, stateLabel, type Job } from '@/features/analysis/jobs';
 import { usePickVideo } from '@/features/analysis/pick';
-import type { Tier } from '@/features/analysis/types';
 import { useSchedule } from '@/features/analysis/use-schedule';
 import { usePlan } from '@/features/plan/store';
 import { getStrength } from '@/features/strength/api';
@@ -79,22 +77,14 @@ export default function AnalysisHub() {
       return () => ac.abort();
     }, [load, refreshTokens]),
   );
-  // новый разбор: сначала стиль борьбы и манера (MIRA учитывает их в тактике), потом токен (не хватает — пополнение),
-  // потом уровень разбора (шторка: быстрый / средний / продвинутый и сколько ждать сейчас)
+  // новый разбор (эксперт, 2026-11-25): стиль борьбы и манера (MIRA учитывает их в тактике) → токен (не хватает —
+  // пополнение) → какое видео подойдёт → галерея → обрезка → уровень разбора (там списывается токен) → разговор MIRA
   const [styleGate, setStyleGate] = useState(false);
-  const [tierOpen, setTierOpen] = useState(false);
-  const draft = useAnalysisDraft();
+  const [tipsOpen, setTipsOpen] = useState(false);
   const pickVideo = usePickVideo();
   const afterStyle = () => {
     if (tok.data && tok.data.balance < tok.data.cost) setTopUp('start');
-    else setTierOpen(true);
-  };
-  // быстрый — сразу к видео (окно разбора ему не нужно); продвинутый — через экран окна разбора и очереди
-  const onTier = (t: Tier) => {
-    setTierOpen(false);
-    draft.setAnswer('tier', t);
-    if (t === 'fast') pickVideo();
-    else router.push('/mira/schedule');
+    else setTipsOpen(true);
   };
   const startNew = async () => {
     const s = await getStrength().catch(() => null);
@@ -238,8 +228,12 @@ export default function AnalysisHub() {
         onDone={() => { setStyleGate(false); afterStyle(); }} />
       <TopUpSheet visible={topUp !== null} onClose={() => setTopUp(null)} accent={SEA.sea} onAccent={SEA.onSea}
         reason={topUp === 'start' ? 'Для нового разбора нужен 1 токен.' : undefined}
-        onBought={() => topUp === 'start' && setTierOpen(true)} />
-      <TierSheet visible={tierOpen} onClose={() => setTierOpen(false)} onPick={onTier} />
+        onBought={() => topUp === 'start' && setTipsOpen(true)} />
+      <VideoTipsModal visible={tipsOpen} onClose={() => setTipsOpen(false)}
+        onContinue={() => {
+          setTipsOpen(false);
+          void pickVideo();
+        }} />
         </>
       )}
     </GlassHeaderScreen>
